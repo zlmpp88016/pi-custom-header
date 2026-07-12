@@ -43,4 +43,11 @@ describe("normalizeConfig", () => {
 	test("custom sandbox honored", () => {
 		expect(normalizeConfig({ sandbox: "linux_sandbox" }).sandbox).toBe("linux_sandbox");
 	});
+
+	test("debug defaults to false and accepts only strict true", () => {
+		expect(normalizeConfig({}).debug).toBe(false);
+		expect(normalizeConfig({ debug: true }).debug).toBe(true);
+		expect(normalizeConfig({ debug: "true" }).debug).toBe(false);
+		expect(normalizeConfig({ debug: 1 }).debug).toBe(false);
+	});
 });

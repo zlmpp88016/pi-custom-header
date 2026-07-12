@@ -6,5 +6,6 @@
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "unknownPlaceholder": "drop-line",
-  "sandbox": "windows_sandbox"
+  "sandbox": "windows_sandbox",
+  "debug": false
 }

@@ -28,6 +28,8 @@ export interface CustomHeaderConfig {
 	unknownPlaceholder: UnknownPlaceholderMode;
 	/** Value for the Codex turn-metadata `sandbox` field. */
 	sandbox: string;
+	/** When true, write diagnostics to pi-custom-header.log (tokens redacted). */
+	debug: boolean;
 }
 
 /** A parsed template: ordered header lines, ready to render. */

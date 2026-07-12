@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveExtensionUserDir } from "./agent-dir.js";
-import { logDebug } from "./logger.js";
+import { logDebug, setDebugEnabled } from "./logger.js";
 import { parseHeaderTemplate } from "./template.js";
 import type {
 	CustomHeaderConfig,
@@ -33,6 +33,7 @@ const DEFAULT_CONFIG: CustomHeaderConfig = {
 	blacklist: DEFAULT_BLACKLIST,
 	unknownPlaceholder: "drop-line",
 	sandbox: "windows_sandbox",
+	debug: false,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -88,15 +89,21 @@ function normalizeUnknownPlaceholder(raw: unknown): UnknownPlaceholderMode {
 	return raw === "keep" ? "keep" : "drop-line";
 }
 
+/** Fresh copy of defaults with an independent blacklist array. */
+function cloneDefaults(): CustomHeaderConfig {
+	return { ...DEFAULT_CONFIG, blacklist: [...DEFAULT_BLACKLIST] };
+}
+
 export function normalizeConfig(raw: unknown): CustomHeaderConfig {
 	if (!isRecord(raw)) {
-		return { ...DEFAULT_CONFIG, blacklist: [...DEFAULT_BLACKLIST] };
+		return cloneDefaults();
 	}
 	return {
 		rules: normalizeRules(raw.rules),
 		blacklist: normalizeBlacklist(raw.blacklist),
 		unknownPlaceholder: normalizeUnknownPlaceholder(raw.unknownPlaceholder),
 		sandbox: toStringOrUndefined(raw.sandbox) ?? DEFAULT_CONFIG.sandbox,
+		debug: raw.debug === true,
 	};
 }
 
@@ -132,14 +139,20 @@ export function loadConfig(): CustomHeaderConfig {
 
 	let config: CustomHeaderConfig;
 	if (!existsSync(path)) {
-		config = { ...DEFAULT_CONFIG, blacklist: [...DEFAULT_BLACKLIST] };
+		config = cloneDefaults();
 	} else {
+		let rawText = "";
 		try {
-			const rawText = readFileSync(path, "utf8");
+			rawText = readFileSync(path, "utf8");
 			config = normalizeConfig(JSON.parse(rawText));
 		} catch (error) {
+			// The JSON is broken so we can't parse `debug`, but if the raw text asks
+			// for debug, enable it so this very error gets logged for the user.
+			if (/"debug"\s*:\s*true/.test(rawText)) {
+				setDebugEnabled(true);
+			}
 			logDebug(`failed to parse ${path}, using defaults (headers unchanged)`, error);
-			config = { ...DEFAULT_CONFIG, blacklist: [...DEFAULT_BLACKLIST] };
+			config = cloneDefaults();
 		}
 	}
 
