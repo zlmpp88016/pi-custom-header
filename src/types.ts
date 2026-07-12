@@ -1,0 +1,37 @@
+import type { HeaderLine } from "./template.js";
+
+/** A single match rule: all present fields are ANDed together. */
+export interface MatchSpec {
+	/** Equality against `ctx.model.provider` (e.g. "Axon"). Case-sensitive. */
+	provider?: string;
+	/** Equality against `ctx.model.id` (e.g. "gpt-5.5"). Case-sensitive. */
+	modelId?: string;
+	/** Regex tested against `ctx.model.id` (e.g. "^claude-"). */
+	modelIdRegex?: string;
+}
+
+/** One ordered rule mapping a match to a template file name. */
+export interface Rule {
+	match: MatchSpec;
+	/** Template file name, e.g. "codex.headers" (resolved under templates/). */
+	template: string;
+}
+
+/** Behavior when a placeholder has no registered generator. */
+export type UnknownPlaceholderMode = "drop-line" | "keep";
+
+/** Fully-normalized config with defaults applied. */
+export interface CustomHeaderConfig {
+	rules: Rule[];
+	/** Header names never written (case-insensitive compare). */
+	blacklist: string[];
+	unknownPlaceholder: UnknownPlaceholderMode;
+	/** Value for the Codex turn-metadata `sandbox` field. */
+	sandbox: string;
+}
+
+/** A parsed template: ordered header lines, ready to render. */
+export interface ParsedTemplate {
+	name: string;
+	lines: HeaderLine[];
+}

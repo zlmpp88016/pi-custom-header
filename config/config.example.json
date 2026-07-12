@@ -1,0 +1,10 @@
+{
+  "rules": [
+    { "match": { "provider": "Axon", "modelId": "gpt-5.5" }, "template": "codex.headers" },
+    { "match": { "provider": "Axon", "modelId": "gpt-5.4" }, "template": "codex.headers" },
+    { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
+  ],
+  "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
+  "unknownPlaceholder": "drop-line",
+  "sandbox": "windows_sandbox"
+}

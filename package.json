@@ -1,0 +1,55 @@
+{
+  "name": "pi-custom-header",
+  "version": "0.1.0",
+  "description": "Configurable before_provider_headers extension for the pi coding agent. Matches by provider + model and injects a full set of request headers — including per-session/per-turn dynamic values (session id, Codex turn metadata) — so pi's outbound requests can mirror official clients (Claude Code, Codex).",
+  "type": "module",
+  "main": "./index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "templates",
+    "config/config.example.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "check": "bun run typecheck && bun test"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "pi-coding-agent",
+    "coding-agent",
+    "headers",
+    "http-headers",
+    "provider",
+    "session-id",
+    "codex",
+    "claude-code"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  },
+  "dependencies": {
+    "uuidv7": "^1.0.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "@types/node": "^20.0.0"
+  }
+}

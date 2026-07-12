@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+bun.lock
+bun.lockb
+package-lock.json
+
+# Build / TS
+*.tsbuildinfo
+dist/
+
+# ── Security red lines (never commit) ──────────────────────────────
+# Persisted machine-level identifier (generated at runtime, per-machine)
+installation-id
+*.installation-id
+
+# Real captured headers may contain plaintext Bearer tokens.
+# The in-repo templates/ use {{placeholders}} only; anything below is a guard
+# against accidentally committing a real capture or a filled-in user template.
+*.local.headers
+*.real.headers
+templates/*.local.headers
+references/
+secrets/
+*.secret
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
