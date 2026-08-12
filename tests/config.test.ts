@@ -39,4 +39,11 @@ describe("normalizeConfig", () => {
 		expect(normalizeConfig({ debug: "true" }).debug).toBe(false);
 		expect(normalizeConfig({ debug: 1 }).debug).toBe(false);
 	});
+
+	test("sandbox defaults to windows_sandbox, keeps custom string, rejects non-string/empty", () => {
+		expect(normalizeConfig({}).sandbox).toBe("windows_sandbox");
+		expect(normalizeConfig({ sandbox: "seccomp" }).sandbox).toBe("seccomp");
+		expect(normalizeConfig({ sandbox: "" }).sandbox).toBe("windows_sandbox");
+		expect(normalizeConfig({ sandbox: 123 }).sandbox).toBe("windows_sandbox");
+	});
 });

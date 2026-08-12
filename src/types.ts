@@ -22,6 +22,12 @@ export interface CustomHeaderConfig {
 	rules: Rule[];
 	/** Header names never written (case-insensitive compare). */
 	blacklist: string[];
+	/**
+	 * Value for the Codex turn-metadata `sandbox` field. Must match the platform
+	 * the template's user-agent claims (e.g. `windows_sandbox`, `seatbelt`,
+	 * `seccomp`), not necessarily the real host.
+	 */
+	sandbox: string;
 	/** When true, write diagnostics to pi-custom-header.log (tokens redacted). */
 	debug: boolean;
 }

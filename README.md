@@ -49,7 +49,8 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
     { "match": { "provider": "Axon", "modelId": "gpt-5.5" }, "template": "codex.headers" },
     { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
   ],
-  "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"]
+  "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
+  "sandbox": "windows_sandbox"
 }
 ```
 
@@ -60,6 +61,7 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 | `match.modelId` | Equals `ctx.model.id` (e.g. `gpt-5.5`). Case-sensitive. Optional. |
 | `match.modelIdRegex` | Regex tested against `ctx.model.id` (e.g. `^claude-` covers `claude-opus-4-8/4-7/4-6`). Optional. |
 | `blacklist` | Header names never written (case-insensitive). Protects auth/transport headers. |
+| `sandbox` | Value for the `sandbox` field in Codex turn metadata. Default `windows_sandbox`. Valid values: `windows_sandbox`, `windows_elevated`, `seatbelt` (macOS), `seccomp` (Linux), `none` (sandbox off / danger-full-access), `external`. Must match the platform your template's `user-agent` **claims**, not necessarily the real host — e.g. if you edit the UA to macOS, set `seatbelt`. |
 
 Fields present in a `match` are ANDed. An empty `match: {}` is a catch-all — use with care. A model that matches no rule (or a request with no model) is passed through untouched. A template line whose placeholder has no registered generator is dropped (never emitted as a raw `{{token}}`).
 
@@ -75,7 +77,7 @@ Dynamic lines use `{{placeholder}}`:
 | `{{window_id}}` | `<session_id>:0` |
 | `{{request_id}}` | fresh UUID v7 |
 | `{{installation_id}}` | persisted machine-stable UUID |
-| `{{codex_turn_metadata}}` | compact JSON: `installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms` (field order matches the real Codex capture; `workspaces` intentionally omitted) |
+| `{{codex_turn_metadata}}` | compact JSON: `installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms` (field order matches the real Codex capture; `sandbox` comes from the config `sandbox` option; `workspaces` intentionally omitted) |
 
 Placeholder values are memoized per hook fire (every `{{session_id}}` in one request is identical; `request_id`/`turn_id` are generated once per fire).
 

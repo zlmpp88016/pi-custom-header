@@ -22,9 +22,12 @@ const DEFAULT_BLACKLIST = [
 	"Accept-Encoding",
 ];
 
+const DEFAULT_SANDBOX = "windows_sandbox";
+
 const DEFAULT_CONFIG: CustomHeaderConfig = {
 	rules: [],
 	blacklist: DEFAULT_BLACKLIST,
+	sandbox: DEFAULT_SANDBOX,
 	debug: false,
 };
 
@@ -89,6 +92,7 @@ export function normalizeConfig(raw: unknown): CustomHeaderConfig {
 	return {
 		rules: normalizeRules(raw.rules),
 		blacklist: normalizeBlacklist(raw.blacklist),
+		sandbox: toStringOrUndefined(raw.sandbox) ?? DEFAULT_SANDBOX,
 		debug: raw.debug === true,
 	};
 }

@@ -5,5 +5,6 @@
     { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
+  "sandbox": "windows_sandbox",
   "debug": false
 }

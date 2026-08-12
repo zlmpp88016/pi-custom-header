@@ -2,9 +2,6 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { uuidv7 } from "uuidv7";
 import { getInstallationId } from "./state.js";
 
-/** Fixed value for the Codex turn-metadata `sandbox` field. */
-const SANDBOX = "windows_sandbox";
-
 /**
  * Per-hook render context. Placeholder values are memoized here so that every
  * reference within a single hook fire is consistent (e.g. session_id used in
@@ -13,11 +10,13 @@ const SANDBOX = "windows_sandbox";
  */
 export interface RenderContext {
 	ctx: ExtensionContext;
+	/** Codex turn-metadata `sandbox` value (config `sandbox`). */
+	sandbox: string;
 	cache: Map<string, string>;
 }
 
-export function createRenderContext(ctx: ExtensionContext): RenderContext {
-	return { ctx, cache: new Map() };
+export function createRenderContext(ctx: ExtensionContext, sandbox: string): RenderContext {
+	return { ctx, sandbox, cache: new Map() };
 }
 
 type Generator = (rc: RenderContext) => string;
@@ -42,7 +41,7 @@ function codexTurnMetadata(rc: RenderContext): string {
 		window_id: `${sid}:0`,
 		request_kind: "turn",
 		thread_source: "user",
-		sandbox: SANDBOX,
+		sandbox: rc.sandbox,
 		turn_started_at_unix_ms: Date.now(),
 	});
 }

@@ -5,7 +5,7 @@
 # Accept-Encoding) are intentionally omitted — pi and the HTTP layer own them.
 Accept: application/json
 Content-Type: application/json
-User-Agent: claude-cli/2.1.207 (external, cli)
+User-Agent: claude-cli/2.1.224 (external, cli)
 X-Claude-Code-Session-Id: {{session_id}}
 X-Stainless-Arch: x64
 X-Stainless-Lang: js

@@ -44,7 +44,7 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 			}
 
 			const blacklist = new Set(config.blacklist.map((h) => h.toLowerCase()));
-			const rc = createRenderContext(ctx);
+			const rc = createRenderContext(ctx, config.sandbox);
 
 			logDebug(`${modelLabel} → template "${templateName}"`);
 

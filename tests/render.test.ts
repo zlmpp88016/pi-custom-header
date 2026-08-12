@@ -12,7 +12,7 @@ function fakeCtx(): ExtensionContext {
 }
 
 function rc() {
-	return createRenderContext(fakeCtx());
+	return createRenderContext(fakeCtx(), "windows_sandbox");
 }
 
 describe("renderValue — placeholders", () => {
@@ -88,6 +88,13 @@ describe("codex_turn_metadata", () => {
 		expect(obj.sandbox).toBe("windows_sandbox");
 		expect(typeof obj.turn_started_at_unix_ms).toBe("number");
 		expect(obj).not.toHaveProperty("workspaces");
+	});
+
+	test("custom sandbox from config flows into the metadata", () => {
+		const ctx = createRenderContext(fakeCtx(), "seatbelt");
+		const raw = renderValue("{{codex_turn_metadata}}", ctx).value!;
+		const obj = JSON.parse(raw);
+		expect(obj.sandbox).toBe("seatbelt");
 	});
 
 	test("turn_id and session_id differ (turn is per-fire)", () => {
