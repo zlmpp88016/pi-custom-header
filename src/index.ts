@@ -44,7 +44,7 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 			}
 
 			const blacklist = new Set(config.blacklist.map((h) => h.toLowerCase()));
-			const rc = createRenderContext(ctx, config.sandbox);
+			const rc = createRenderContext(ctx);
 
 			logDebug(`${modelLabel} → template "${templateName}"`);
 
@@ -58,7 +58,7 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 					continue;
 				}
 
-				const { value, unknown } = renderValue(rawValue, rc, config.unknownPlaceholder);
+				const { value, unknown } = renderValue(rawValue, rc);
 				if (unknown.length > 0) {
 					logDebug(`  unknown placeholder(s) in "${key}": ${unknown.join(", ")}`);
 				}

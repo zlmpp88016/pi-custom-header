@@ -11,61 +11,61 @@ function fakeCtx(): ExtensionContext {
 	} as unknown as ExtensionContext;
 }
 
-function rc(sandbox = "windows_sandbox") {
-	return createRenderContext(fakeCtx(), sandbox);
+function rc() {
+	return createRenderContext(fakeCtx());
 }
 
 describe("renderValue — placeholders", () => {
 	test("session_id resolves to the current session id", () => {
-		expect(renderValue("{{session_id}}", rc(), "drop-line").value).toBe(SID);
+		expect(renderValue("{{session_id}}", rc()).value).toBe(SID);
 	});
 
 	test("window_id is <session_id>:0", () => {
-		expect(renderValue("{{window_id}}", rc(), "drop-line").value).toBe(`${SID}:0`);
+		expect(renderValue("{{window_id}}", rc()).value).toBe(`${SID}:0`);
 	});
 
 	test("request_id is a fresh uuid v7 (not the session id)", () => {
-		const v = renderValue("{{request_id}}", rc(), "drop-line").value;
+		const v = renderValue("{{request_id}}", rc()).value;
 		expect(v).toMatch(/^[0-9a-f-]{36}$/i);
 		expect(v).not.toBe(SID);
 	});
 
 	test("multiple placeholders in one value all replaced", () => {
 		const ctx = rc();
-		expect(renderValue("s={{session_id}};w={{window_id}}", ctx, "drop-line").value).toBe(
+		expect(renderValue("s={{session_id}};w={{window_id}}", ctx).value).toBe(
 			`s=${SID};w=${SID}:0`,
 		);
 	});
 
 	test("same placeholder is memoized within one render context", () => {
 		const ctx = rc();
-		const a = renderValue("{{request_id}}", ctx, "drop-line").value;
-		const b = renderValue("{{request_id}}", ctx, "drop-line").value;
+		const a = renderValue("{{request_id}}", ctx).value;
+		const b = renderValue("{{request_id}}", ctx).value;
 		expect(a).toBe(b!); // same hook fire → identical
 	});
 
 	test("no placeholders → passthrough unchanged", () => {
-		expect(renderValue("application/json", rc(), "drop-line").value).toBe("application/json");
+		expect(renderValue("application/json", rc()).value).toBe("application/json");
 	});
 });
 
 describe("renderValue — unknown placeholder policy", () => {
-	test("drop-line drops the whole value", () => {
-		const r = renderValue("{{nope}}", rc(), "drop-line");
+	test("unknown placeholder drops the whole value", () => {
+		const r = renderValue("{{nope}}", rc());
 		expect(r.value).toBeUndefined();
 		expect(r.unknown).toEqual(["nope"]);
 	});
 
-	test("keep leaves the original token", () => {
-		const r = renderValue("x-{{nope}}", rc(), "keep");
-		expect(r.value).toBe("x-{{nope}}");
+	test("unknown placeholder mixed with literal text still drops the line", () => {
+		const r = renderValue("x-{{nope}}", rc());
+		expect(r.value).toBeUndefined();
 		expect(r.unknown).toEqual(["nope"]);
 	});
 });
 
 describe("codex_turn_metadata", () => {
 	test("valid compact JSON with capture field order, includes sandbox, omits workspaces", () => {
-		const raw = renderValue("{{codex_turn_metadata}}", rc(), "drop-line").value!;
+		const raw = renderValue("{{codex_turn_metadata}}", rc()).value!;
 		expect(raw).not.toContain(" "); // compact
 		const obj = JSON.parse(raw);
 
@@ -90,13 +90,8 @@ describe("codex_turn_metadata", () => {
 		expect(obj).not.toHaveProperty("workspaces");
 	});
 
-	test("sandbox value is configurable", () => {
-		const raw = renderValue("{{codex_turn_metadata}}", rc("linux_sandbox"), "drop-line").value!;
-		expect(JSON.parse(raw).sandbox).toBe("linux_sandbox");
-	});
-
 	test("turn_id and session_id differ (turn is per-fire)", () => {
-		const raw = renderValue("{{codex_turn_metadata}}", rc(), "drop-line").value!;
+		const raw = renderValue("{{codex_turn_metadata}}", rc()).value!;
 		const obj = JSON.parse(raw);
 		expect(obj.turn_id).not.toBe(obj.session_id);
 		expect(obj.installation_id).toMatch(/^[0-9a-f-]{36}$/i);

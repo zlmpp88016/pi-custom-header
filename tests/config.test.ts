@@ -5,8 +5,6 @@ describe("normalizeConfig", () => {
 	test("empty/invalid input → safe defaults", () => {
 		const c = normalizeConfig(null);
 		expect(c.rules).toEqual([]);
-		expect(c.unknownPlaceholder).toBe("drop-line");
-		expect(c.sandbox).toBe("windows_sandbox");
 		expect(c.blacklist).toContain("Authorization");
 	});
 
@@ -33,15 +31,6 @@ describe("normalizeConfig", () => {
 	test("custom blacklist replaces default; empty array falls back to default", () => {
 		expect(normalizeConfig({ blacklist: ["X-Only"] }).blacklist).toEqual(["X-Only"]);
 		expect(normalizeConfig({ blacklist: [] }).blacklist).toContain("Authorization");
-	});
-
-	test("unknownPlaceholder accepts only keep|drop-line", () => {
-		expect(normalizeConfig({ unknownPlaceholder: "keep" }).unknownPlaceholder).toBe("keep");
-		expect(normalizeConfig({ unknownPlaceholder: "bogus" }).unknownPlaceholder).toBe("drop-line");
-	});
-
-	test("custom sandbox honored", () => {
-		expect(normalizeConfig({ sandbox: "linux_sandbox" }).sandbox).toBe("linux_sandbox");
 	});
 
 	test("debug defaults to false and accepts only strict true", () => {

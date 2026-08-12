@@ -1,6 +1,6 @@
 # pi-custom-header
 
-A configurable [`before_provider_headers`](https://) extension for the **pi coding agent**. It matches each request by **provider + model** and injects a full set of request headers — including the per-session / per-turn **dynamic** values that `models.json` static overrides cannot express (session id, Codex turn metadata, request id) — so pi's outbound requests can mirror an official client (Claude Code, Codex).
+A configurable `before_provider_headers` extension for the **pi coding agent**. It matches each request by **provider + model** and injects a full set of request headers — including the per-session / per-turn **dynamic** values that `models.json` static overrides cannot express (session id, Codex turn metadata, request id) — so pi's outbound requests can mirror an official client (Claude Code, Codex).
 
 ## Why
 
@@ -15,13 +15,13 @@ pi install /absolute/path/to/pi-custom-header     # local package
 # or, once published: pi install npm:pi-custom-header
 ```
 
-Then copy the example config and templates into the user config directory and reload:
+Installing only registers the code — **nothing is scaffolded automatically**. Without a `config.json` the extension has no rules and passes every request through untouched (the only file ever auto-generated is `installation-id`, on first use). So copy the example config and templates into the user config directory yourself, then reload:
 
 ```bash
 # user config dir: ~/.pi/agent/extensions/pi-custom-header/
-mkdir -p ~/.pi/agent/extensions/pi-custom-header/templates
+mkdir -p ~/.pi/agent/extensions/pi-custom-header
 cp config/config.example.json ~/.pi/agent/extensions/pi-custom-header/config.json
-cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/templates/
+cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 ```
 
 In pi: `/reload`.
@@ -30,15 +30,15 @@ In pi: `/reload`.
 
 ```
 Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-custom-header/)
-├── index.ts                           ├── config.json        # your rules, blacklist, sandbox
-├── src/                               ├── templates/         # your header templates (may hold real tokens)
-├── templates/  (bundled defaults)     │   ├── claude-code.headers
-│   ├── claude-code.headers            │   └── codex.headers
-│   └── codex.headers                  └── installation-id    # generated, machine-stable
+├── index.ts                           ├── config.json            # your rules, blacklist
+├── src/                               ├── claude-code.headers    # your templates (may hold real tokens)
+├── templates/  (bundled defaults)     ├── codex.headers
+│   ├── claude-code.headers            └── installation-id        # generated on first use, machine-stable
+│   └── codex.headers
 └── config/config.example.json
 ```
 
-- Templates and config are read from the **user directory first**, falling back to the bundled defaults.
+- Template lookup order, first match wins: **① user extension dir, flat** (alongside `config.json`, the recommended place to edit) → **② user `templates/` subdir** (legacy layout, still supported) → **③ bundled with the package**.
 - Path resolution honors `PI_CODING_AGENT_DIR` (defaults to `~/.pi/agent`).
 
 ## Configuration (`config.json`)
@@ -49,9 +49,7 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
     { "match": { "provider": "Axon", "modelId": "gpt-5.5" }, "template": "codex.headers" },
     { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
   ],
-  "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
-  "unknownPlaceholder": "drop-line",
-  "sandbox": "windows_sandbox"
+  "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"]
 }
 ```
 
@@ -62,10 +60,8 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 | `match.modelId` | Equals `ctx.model.id` (e.g. `gpt-5.5`). Case-sensitive. Optional. |
 | `match.modelIdRegex` | Regex tested against `ctx.model.id` (e.g. `^claude-` covers `claude-opus-4-8/4-7/4-6`). Optional. |
 | `blacklist` | Header names never written (case-insensitive). Protects auth/transport headers. |
-| `unknownPlaceholder` | `drop-line` (default) drops a line whose placeholder has no generator; `keep` leaves the raw `{{token}}`. |
-| `sandbox` | Value for the Codex turn-metadata `sandbox` field. |
 
-Fields present in a `match` are ANDed. An empty `match: {}` is a catch-all — use with care. A model that matches no rule (or a request with no model) is passed through untouched.
+Fields present in a `match` are ANDed. An empty `match: {}` is a catch-all — use with care. A model that matches no rule (or a request with no model) is passed through untouched. A template line whose placeholder has no registered generator is dropped (never emitted as a raw `{{token}}`).
 
 ## Templates
 

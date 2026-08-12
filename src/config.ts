@@ -4,13 +4,7 @@ import { fileURLToPath } from "node:url";
 import { resolveExtensionUserDir } from "./agent-dir.js";
 import { logDebug, setDebugEnabled } from "./logger.js";
 import { parseHeaderTemplate } from "./template.js";
-import type {
-	CustomHeaderConfig,
-	MatchSpec,
-	ParsedTemplate,
-	Rule,
-	UnknownPlaceholderMode,
-} from "./types.js";
+import type { CustomHeaderConfig, MatchSpec, ParsedTemplate, Rule } from "./types.js";
 
 // Package root = one level up from src/ (this file lives in src/).
 const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -31,8 +25,6 @@ const DEFAULT_BLACKLIST = [
 const DEFAULT_CONFIG: CustomHeaderConfig = {
 	rules: [],
 	blacklist: DEFAULT_BLACKLIST,
-	unknownPlaceholder: "drop-line",
-	sandbox: "windows_sandbox",
 	debug: false,
 };
 
@@ -85,10 +77,6 @@ function normalizeBlacklist(raw: unknown): string[] {
 	return list.length > 0 ? list : DEFAULT_BLACKLIST;
 }
 
-function normalizeUnknownPlaceholder(raw: unknown): UnknownPlaceholderMode {
-	return raw === "keep" ? "keep" : "drop-line";
-}
-
 /** Fresh copy of defaults with an independent blacklist array. */
 function cloneDefaults(): CustomHeaderConfig {
 	return { ...DEFAULT_CONFIG, blacklist: [...DEFAULT_BLACKLIST] };
@@ -101,8 +89,6 @@ export function normalizeConfig(raw: unknown): CustomHeaderConfig {
 	return {
 		rules: normalizeRules(raw.rules),
 		blacklist: normalizeBlacklist(raw.blacklist),
-		unknownPlaceholder: normalizeUnknownPlaceholder(raw.unknownPlaceholder),
-		sandbox: toStringOrUndefined(raw.sandbox) ?? DEFAULT_CONFIG.sandbox,
 		debug: raw.debug === true,
 	};
 }
@@ -170,22 +156,30 @@ interface CachedTemplate {
 
 const templateCache = new Map<string, CachedTemplate>();
 
+/**
+ * Locate a template file, first match wins:
+ * 1. User extension dir, flat — alongside config.json and installation-id.
+ *    This is the documented place to edit templates.
+ * 2. User extension dir, under templates/ — kept for setups created before the
+ *    flat layout.
+ * 3. Bundled with the package.
+ */
 function resolveTemplatePath(name: string): string | undefined {
-	const userPath = join(resolveExtensionUserDir(), TEMPLATES_DIR_NAME, name);
-	if (existsSync(userPath)) {
-		return userPath;
-	}
-	const bundledPath = join(BUNDLED_TEMPLATES_DIR, name);
-	if (existsSync(bundledPath)) {
-		return bundledPath;
-	}
-	return undefined;
+	const userDir = resolveExtensionUserDir();
+	const candidates = [
+		join(userDir, name),
+		join(userDir, TEMPLATES_DIR_NAME, name),
+		join(BUNDLED_TEMPLATES_DIR, name),
+	];
+	return candidates.find((path) => existsSync(path));
 }
 
 /**
- * Load and parse a template by file name. User dir overrides bundled default.
+ * Load and parse a template by file name. A template in the user extension dir
+ * (flat, or under templates/) overrides the bundled default.
  * Returns null if not found or unreadable (caller → transparent passthrough).
- * Cached by path+fingerprint so /reload picks up edits.
+ * Cached by path+fingerprint so /reload picks up both edits and moves between
+ * those locations.
  */
 export function loadTemplate(name: string): ParsedTemplate | null {
 	const path = resolveTemplatePath(name);

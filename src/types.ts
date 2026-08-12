@@ -17,17 +17,11 @@ export interface Rule {
 	template: string;
 }
 
-/** Behavior when a placeholder has no registered generator. */
-export type UnknownPlaceholderMode = "drop-line" | "keep";
-
 /** Fully-normalized config with defaults applied. */
 export interface CustomHeaderConfig {
 	rules: Rule[];
 	/** Header names never written (case-insensitive compare). */
 	blacklist: string[];
-	unknownPlaceholder: UnknownPlaceholderMode;
-	/** Value for the Codex turn-metadata `sandbox` field. */
-	sandbox: string;
 	/** When true, write diagnostics to pi-custom-header.log (tokens redacted). */
 	debug: boolean;
 }
