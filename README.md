@@ -1,47 +1,51 @@
 # pi-custom-header
 
-A configurable `before_provider_headers` extension for the **pi coding agent**. It matches each request by **provider + model** and injects a full set of request headers — including the per-session / per-turn **dynamic** values that `models.json` static overrides cannot express (session id, Codex turn metadata, request id) — so pi's outbound requests can mirror an official client (Claude Code, Codex).
+[English](./README.en.md) | **中文**
 
-## Why
+一个可以为 [Pi](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 提供动态的请求头伪装的插件，支持伪装 Claude Code、Codex 客户端请求头。
 
-pi lets you set static `headers` per provider/model in `models.json`, but static config cannot produce values that follow the session id or change every turn. This extension runs **after** pi assembles the static headers (so it can override them) and fills the dynamic values at request time from `ctx`.
+能够生成按会话、按轮次变化的**动态值**（会话 ID、Codex turn 元数据、请求 ID 等），这些用 `models.json` 里的静态 headers 无法实现。
 
-It matches at the **model** level on purpose: one gateway provider (e.g. `Axon`) can front models from several vendors — `gpt-5.5` should look like Codex, `claude-opus-4-8` like Claude Code, and `deepseek`/`glm`/`grok` should be left untouched. Provider-only matching can't tell them apart.
+## 解决什么问题
 
-## Install
+在 `models.json` 里，pi 可以为每个 provider / model 配置静态 `headers`，但静态配置没法跟随会话 ID，也不会每轮变化。这个扩展在 pi 组装好静态 headers **之后**运行（所以可以覆盖它们），并在请求发出前从 `ctx` 里填上动态值。
+
+为什么要按 **model** 匹配？因为一个网关 provider（比如 `Axon`）可能同时代理多家厂商的模型：`gpt-5.5` 要看起来像 Codex，`claude-opus-4-8` 要看起来像 Claude Code，而 `deepseek` / `glm` / `grok` 则保持原样。只按 provider 匹配是分不开它们的。
+
+## 安装
 
 ```bash
-pi install /absolute/path/to/pi-custom-header     # local package
-# or, once published: pi install npm:pi-custom-header
+pi install git:github.com/rays1d/pi-custom-header
 ```
 
-Installing only registers the code — **nothing is scaffolded automatically**. Without a `config.json` the extension has no rules and passes every request through untouched (the only file ever auto-generated is `installation-id`, on first use). So copy the example config and templates into the user config directory yourself, then reload:
+安装只是注册代码，**不会自动生成任何东西**。没有 `config.json` 时，扩展没有任何规则，所有请求都原样通过（唯一会自动生成的文件是首次使用时的 `installation-id`）。所以你需要自己把示例配置和模板复制到用户配置目录，再重载：
 
 ```bash
-# user config dir: ~/.pi/agent/extensions/pi-custom-header/
+# 用户配置目录：~/.pi/agent/extensions/pi-custom-header/
 mkdir -p ~/.pi/agent/extensions/pi-custom-header
 cp config/config.example.json ~/.pi/agent/extensions/pi-custom-header/config.json
 cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 ```
 
-In pi: `/reload`.
+然后在 pi 里执行 `/reload`。
 
-## Layout
+## 目录布局
 
 ```
-Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-custom-header/)
-├── index.ts                           ├── config.json            # your rules, blacklist
-├── src/                               ├── claude-code.headers    # your templates (may hold real tokens)
-├── templates/  (bundled defaults)     ├── codex.headers
-│   ├── claude-code.headers            └── installation-id        # generated on first use, machine-stable
+代码（本仓库）                                用户数据（~/.pi/agent/extensions/pi-custom-header/）
+├── index.ts                                ├── config.json            # 规则
+├── src/                                    ├── claude-code.headers    # 模板
+├── templates/                              ├── codex.headers
+│   ├── claude-code.headers                 └── installation-id        # 首次使用时生成，机器固定
 │   └── codex.headers
 └── config/config.example.json
 ```
 
-- Template lookup order, first match wins: **① user extension dir, flat** (alongside `config.json`, the recommended place to edit) → **② user `templates/` subdir** (legacy layout, still supported) → **③ bundled with the package**.
-- Path resolution honors `PI_CODING_AGENT_DIR` (defaults to `~/.pi/agent`).
+模板按以下顺序查找，命中即停：**① 用户扩展目录下、和 `config.json` 同级的平铺位置**（推荐改这里）→ **② 用户目录下的 `templates/` 子目录**（旧版布局，仍兼容）→ **③ 随包内置的默认模板**。
 
-## Configuration (`config.json`)
+路径解析遵循 `PI_CODING_AGENT_DIR` 环境变量（默认 `~/.pi/agent`）。
+
+## 配置（config.json）
 
 ```json
 {
@@ -50,54 +54,60 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
     { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
-  "sandbox": "windows_sandbox"
+  "sandbox": "windows_sandbox",
+  "debug": false
 }
 ```
 
-| Field | Meaning |
-|-------|---------|
-| `rules` | Ordered list. **First match wins.** Each rule maps a `match` to a `template` file name. |
-| `match.provider` | Equals `ctx.model.provider` (e.g. `Axon`). Case-sensitive. Optional. |
-| `match.modelId` | Equals `ctx.model.id` (e.g. `gpt-5.5`). Case-sensitive. Optional. |
-| `match.modelIdRegex` | Regex tested against `ctx.model.id` (e.g. `^claude-` covers `claude-opus-4-8/4-7/4-6`). Optional. |
-| `blacklist` | Header names never written (case-insensitive). Protects auth/transport headers. |
-| `sandbox` | Value for the `sandbox` field in Codex turn metadata. Default `windows_sandbox`. Valid values: `windows_sandbox`, `windows_elevated`, `seatbelt` (macOS), `seccomp` (Linux), `none` (sandbox off / danger-full-access), `external`. Must match the platform your template's `user-agent` **claims**, not necessarily the real host — e.g. if you edit the UA to macOS, set `seatbelt`. |
+| 字段 | 说明 |
+|------|------|
+| `rules` | 规则列表，**按顺序匹配，命中第一条即生效**。每条规则把一个 `match` 映射到一个 `template` 文件。 |
+| `match.provider` | 与 `ctx.model.provider` 相等（如 `Axon`）。区分大小写。可选。 |
+| `match.modelId` | 与 `ctx.model.id` 相等（如 `gpt-5.5`）。区分大小写。可选。 |
+| `match.modelIdRegex` | 用正则匹配 `ctx.model.id`（如 `^claude-` 可匹配 `claude-opus-4-8/4-7/4-6`）。可选。 |
+| `blacklist` | 绝不写入请求的头部名称（不区分大小写），用来保护鉴权信息和传输层头部。 |
+| `sandbox` | Codex turn 元数据里 `sandbox` 字段的值，默认 `windows_sandbox`。可选值：`windows_sandbox`、`windows_elevated`、`seatbelt`（macOS）、`seccomp`（Linux）、`none`（关闭沙箱 / 完全访问，慎用）、`external`。这个值要和你模板 `user-agent` 里**声称**的平台一致，而不是真实主机平台——比如你把 UA 改成了 macOS，这里就要写 `seatbelt`。 |
+| `debug` | 调试开关，默认 `false`。设为 `true` 时，把诊断日志（token 已脱敏）写到用户扩展目录下的 `pi-custom-header.log`；默认关闭，零副作用。 |
 
-Fields present in a `match` are ANDed. An empty `match: {}` is a catch-all — use with care. A model that matches no rule (or a request with no model) is passed through untouched. A template line whose placeholder has no registered generator is dropped (never emitted as a raw `{{token}}`).
+`match` 里设置了多个字段时，需要**全部满足**（AND 关系）；一个都不设就是兜底规则（catch-all），要小心使用。没有匹配到任何规则的模型（或请求本身没有 model）会被直接放行。模板里若有占位符没有注册生成器，那一行会被丢弃，绝不会把原始 `{{token}}` 发出去。
 
-## Templates
+## 模板
 
-A template is **raw HTTP header text**, one `Key: Value` per line, split on the first `:` (values may contain `:`). Blank lines and `#` comments are ignored. Key casing and order are preserved to match captures byte-for-byte.
+模板就是**原始 HTTP 头文本**：每行一个 `Key: Value`，按第一个 `:` 切分（值里可以再包含 `:`）。空行和以 `#` 开头的注释会被忽略。键的大小写和排列顺序都原样保留，保证和抓到的真实请求逐字节一致。
 
-Dynamic lines use `{{placeholder}}`:
+动态行用 `{{占位符}}` 标记：
 
-| Placeholder | Value |
-|-------------|-------|
+| 占位符 | 值 |
+|--------|-----|
 | `{{session_id}}` | `ctx.sessionManager.getSessionId()` |
 | `{{window_id}}` | `<session_id>:0` |
-| `{{request_id}}` | fresh UUID v7 |
-| `{{installation_id}}` | persisted machine-stable UUID |
-| `{{codex_turn_metadata}}` | compact JSON: `installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms` (field order matches the real Codex capture; `sandbox` comes from the config `sandbox` option; `workspaces` intentionally omitted) |
+| `{{request_id}}` | 每次触发重新生成的 UUID v7 |
+| `{{installation_id}}` | 持久化的机器稳定 UUID |
+| `{{codex_turn_metadata}}` | 紧凑 JSON：`installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms`（字段顺序和真实 Codex 抓包一致；`sandbox` 取自配置项；`workspaces` 有意省略） |
 
-Placeholder values are memoized per hook fire (every `{{session_id}}` in one request is identical; `request_id`/`turn_id` are generated once per fire).
+占位符按**单次钩子触发**缓存：同一次请求里所有 `{{session_id}}` 都是同一个值，`request_id` / `turn_id` 每次触发只生成一次。
 
-### Adding a backend
+### 接入新后端
 
-Most of the time: add one `rule` and (if needed) one template file, reusing existing placeholders. Only a brand-new dynamic field requires adding a generator in `src/placeholders.ts`.
+大多数情况加一条 `rule` 就够了，必要时再补一个模板文件，直接复用已有占位符。只有出现全新的动态字段，才需要去 `src/placeholders.ts` 里加生成器。
 
-## Safety
+## 安全
 
-- **`Authorization` must stay blacklisted.** Templates transcribed from captures may contain a real `Bearer` token; the blacklist ensures the extension never overwrites pi's real credential.
-- **Never commit real tokens or `installation-id`.** The in-repo templates use placeholders only. `.gitignore` guards against committing `installation-id` and `*.local.headers` / `*.real.headers`.
-- Every failure path (missing/broken config, unreadable template, absent model, bad regex) degrades to **transparent passthrough** — the extension never throws or blocks a provider request.
+- **`Authorization` 必须留在黑名单里。** 从抓包转写来的模板可能带着真实的 `Bearer` token，黑名单能保证扩展绝不覆盖 pi 的真实凭证。
+- **别把真实 token 或 `installation-id` 提交进仓库。** 仓库内模板只用占位符；`.gitignore` 已防止 `installation-id` 和 `*.local.headers` / `*.real.headers` 被误提交。
+- 所有异常路径——配置缺失或损坏、模板读不到、模型不存在、正则写错——都会**静默放行**，扩展绝不会抛错或阻断 provider 请求。
 
-## Development
+## 开发
 
 ```bash
 bun install
 bun run typecheck   # tsc --noEmit
-bun test            # unit + integration
+bun test            # 单元 + 集成测试
 ```
+
+## 致谢
+
+感谢 [LINUX DO](https://linux.do) 社区。学 AI，上 L 站。
 
 ## License
 
