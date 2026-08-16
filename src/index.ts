@@ -5,13 +5,24 @@ import { createRenderContext } from "./placeholders.js";
 import { resolveTemplateName, type ModelLike } from "./registry.js";
 import { renderValue } from "./render.js";
 
+function setHeaderCaseInsensitive(headers: Record<string, string | null>, key: string, value: string): void {
+	const normalizedKey = key.toLowerCase();
+	for (const existingKey of Object.keys(headers)) {
+		if (existingKey.toLowerCase() === normalizedKey) {
+			delete headers[existingKey];
+		}
+	}
+	headers[key] = value;
+}
+
 /**
  * pi-custom-header
  *
  * Registers `before_provider_headers` and, for a request whose model matches a
  * configured rule, injects that template's headers into `event.headers` —
  * static lines verbatim, dynamic lines via `{{placeholder}}` generators. Runs
- * after pi's static header assembly, so it can override models.json values.
+ * after pi's static header assembly and replaces matching header names
+ * case-insensitively, so it can reliably override models.json values.
  *
  * Every failure path degrades to transparent passthrough (headers untouched);
  * it must never throw and block a provider request.
@@ -67,7 +78,7 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 					continue; // drop-line policy for an unknown placeholder.
 				}
 
-				event.headers[key] = value;
+				setHeaderCaseInsensitive(event.headers, key, value);
 				injected++;
 				logDebug(`  set ${key}: ${redactSecrets(value)}`);
 			}

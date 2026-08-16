@@ -2,7 +2,7 @@
 
 [English](./README.en.md) | **中文**
 
-一个可以为 [Pi](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 提供动态的请求头伪装的插件，支持伪装 Claude Code、Codex 客户端请求头。
+一个可以为 [Pi](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 提供动态请求头覆写的插件，支持按 provider 设置默认模板，并为特定 model 使用 Claude Code、Codex 等专属模板。
 
 能够生成按会话、按轮次变化的**动态值**（会话 ID、Codex turn 元数据、请求 ID 等），这些用 `models.json` 里的静态 headers 无法实现。
 
@@ -10,7 +10,7 @@
 
 在 `models.json` 里，pi 可以为每个 provider / model 配置静态 `headers`，但静态配置没法跟随会话 ID，也不会每轮变化。这个扩展在 pi 组装好静态 headers **之后**运行（所以可以覆盖它们），并在请求发出前从 `ctx` 里填上动态值。
 
-为什么要按 **model** 匹配？因为一个网关 provider（比如 `Axon`）可能同时代理多家厂商的模型：`gpt-5.5` 要看起来像 Codex，`claude-opus-4-8` 要看起来像 Claude Code，而 `deepseek` / `glm` / `grok` 则保持原样。只按 provider 匹配是分不开它们的。
+provider 规则适合为一个网关设置默认 Header；model 规则则处理专属客户端模板。比如 `Axon` 可以默认使用 `custom.headers`，但 `gpt-5.5` 改用 Codex 模板、`claude-opus-4-8` 改用 Claude Code 模板。model 规则命中后会完整替代 provider 模板，不会把两套客户端 Header 混在一起。
 
 ## 安装
 
@@ -36,8 +36,9 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 ├── index.ts                                ├── config.json            # 规则
 ├── src/                                    ├── claude-code.headers    # 模板
 ├── templates/                              ├── codex.headers
-│   ├── claude-code.headers                 └── installation-id        # 首次使用时生成，机器固定
-│   └── codex.headers
+│   ├── claude-code.headers                 ├── custom.headers         # provider 默认模板
+│   ├── codex.headers                       └── installation-id        # 首次使用时生成，机器固定
+│   └── custom.headers
 └── config/config.example.json
 ```
 
@@ -51,7 +52,8 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 {
   "rules": [
     { "match": { "provider": "Axon", "modelId": "gpt-5.5" }, "template": "codex.headers" },
-    { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
+    { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" },
+    { "match": { "provider": "Axon" }, "template": "custom.headers" }
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "sandbox": "windows_sandbox",
@@ -61,7 +63,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 
 | 字段 | 说明 |
 |------|------|
-| `rules` | 规则列表，**按顺序匹配，命中第一条即生效**。每条规则把一个 `match` 映射到一个 `template` 文件。 |
+| `rules` | 规则列表。固定按 **model 级 > provider 级 > 全局兜底级** 选择一个模板；同一级内按顺序取第一条命中规则。 |
 | `match.provider` | 与 `ctx.model.provider` 相等（如 `Axon`）。区分大小写。可选。 |
 | `match.modelId` | 与 `ctx.model.id` 相等（如 `gpt-5.5`）。区分大小写。可选。 |
 | `match.modelIdRegex` | 用正则匹配 `ctx.model.id`（如 `^claude-` 可匹配 `claude-opus-4-8/4-7/4-6`）。可选。 |
@@ -69,11 +71,13 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 | `sandbox` | Codex turn 元数据里 `sandbox` 字段的值，默认 `windows_sandbox`。可选值：`windows_sandbox`、`windows_elevated`、`seatbelt`（macOS）、`seccomp`（Linux）、`none`（关闭沙箱 / 完全访问，慎用）、`external`。这个值要和你模板 `user-agent` 里**声称**的平台一致，而不是真实主机平台——比如你把 UA 改成了 macOS，这里就要写 `seatbelt`。 |
 | `debug` | 调试开关，默认 `false`。设为 `true` 时，把诊断日志（token 已脱敏）写到用户扩展目录下的 `pi-custom-header.log`；默认关闭，零副作用。 |
 
-`match` 里设置了多个字段时，需要**全部满足**（AND 关系）；一个都不设就是兜底规则（catch-all），要小心使用。没有匹配到任何规则的模型（或请求本身没有 model）会被直接放行。模板里若有占位符没有注册生成器，那一行会被丢弃，绝不会把原始 `{{token}}` 发出去。
+含 `modelId` 或 `modelIdRegex` 的规则属于 model 级；只含 `provider` 的规则属于 provider 级；空 `match: {}` 是全局兜底级。跨级优先级固定，不受数组排列位置影响；同一级仍按配置顺序选择。`match` 里设置了多个字段时，需要**全部满足**（AND 关系）。model 规则命中后只应用其模板，provider 模板完全不生效；没有匹配到任何规则的模型（或请求本身没有 model）会被直接放行。模板里若有占位符没有注册生成器，那一行会被丢弃，绝不会把原始 `{{token}}` 发出去。
 
 ## 模板
 
-模板就是**原始 HTTP 头文本**：每行一个 `Key: Value`，按第一个 `:` 切分（值里可以再包含 `:`）。空行和以 `#` 开头的注释会被忽略。键的大小写和排列顺序都原样保留，保证和抓到的真实请求逐字节一致。
+模板就是**原始 HTTP 头文本**：每行一个 `Key: Value`，按第一个 `:` 切分（值里可以再包含 `:`）。空行和以 `#` 开头的注释会被忽略。除了黑名单以外，Header 名没有白名单限制：可以在 `custom.headers` 中继续添加任意合法 Header 行，都会生效。
+
+Header 名按 HTTP 语义**不区分大小写**。写入每一行前，扩展会删除 Pi 已有 Header 中所有同名大小写变体，再以模板中的键和值写入。因此已有的 `User-Agent` 与模板中的 `user-agent` 不会并存，最终只保留模板定义的一个键；模板自身重复定义同名 Header 时，最后一行生效。
 
 动态行用 `{{占位符}}` 标记：
 
@@ -89,7 +93,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 
 ### 接入新后端
 
-大多数情况加一条 `rule` 就够了，必要时再补一个模板文件，直接复用已有占位符。只有出现全新的动态字段，才需要去 `src/placeholders.ts` 里加生成器。
+为整个 provider 设置默认 Header 时，添加一条只含 `provider` 的规则；为某类 model 设置例外时，再添加含 `modelId` 或 `modelIdRegex` 的规则。必要时补一个模板文件并复用已有占位符。只有出现全新的动态字段，才需要去 `src/placeholders.ts` 里加生成器。
 
 ## 安全
 

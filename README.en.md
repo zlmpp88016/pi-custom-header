@@ -2,7 +2,7 @@
 
 **English** | [中文](./README.md)
 
-A plugin that gives Pi dynamic request-header spoofing, so outbound requests can impersonate the official Claude Code and Codex clients.
+A plugin that gives Pi dynamic request-header overrides, with provider defaults and dedicated Claude Code, Codex, or other templates for selected models.
 
 It generates per-session / per-turn **dynamic** values (session id, Codex turn metadata, request id, …) that static `models.json` headers cannot express.
 
@@ -10,7 +10,7 @@ It generates per-session / per-turn **dynamic** values (session id, Codex turn m
 
 pi lets you set static `headers` per provider/model in `models.json`, but static config cannot produce values that follow the session id or change every turn. This extension runs **after** pi assembles the static headers (so it can override them) and fills the dynamic values at request time from `ctx`.
 
-It matches at the **model** level on purpose: one gateway provider (e.g. `Axon`) can front models from several vendors — `gpt-5.5` should look like Codex, `claude-opus-4-8` like Claude Code, and `deepseek`/`glm`/`grok` should be left untouched. Provider-only matching can't tell them apart.
+A provider rule can set default headers for a gateway, while model rules select dedicated client templates. For example, `Axon` can default to `custom.headers`, with `gpt-5.5` using the Codex template and `claude-opus-4-8` using the Claude Code template. When a model rule matches, it replaces the provider template completely, so headers from different clients are never mixed.
 
 ## Install
 
@@ -37,8 +37,9 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 ├── index.ts                           ├── config.json            # your rules, blacklist
 ├── src/                               ├── claude-code.headers    # your templates (may hold real tokens)
 ├── templates/  (bundled defaults)     ├── codex.headers
-│   ├── claude-code.headers            └── installation-id        # generated on first use, machine-stable
-│   └── codex.headers
+│   ├── claude-code.headers            ├── custom.headers         # provider default template
+│   ├── codex.headers                  └── installation-id        # generated on first use, machine-stable
+│   └── custom.headers
 └── config/config.example.json
 ```
 
@@ -51,7 +52,8 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 {
   "rules": [
     { "match": { "provider": "Axon", "modelId": "gpt-5.5" }, "template": "codex.headers" },
-    { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
+    { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" },
+    { "match": { "provider": "Axon" }, "template": "custom.headers" }
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "sandbox": "windows_sandbox",
@@ -61,7 +63,7 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 
 | Field | Meaning |
 |-------|---------|
-| `rules` | Ordered list. **First match wins.** Each rule maps a `match` to a `template` file name. |
+| `rules` | Rule list. Exactly one template is selected by fixed **model > provider > global catch-all** scope priority; first match wins within the same scope. |
 | `match.provider` | Equals `ctx.model.provider` (e.g. `Axon`). Case-sensitive. Optional. |
 | `match.modelId` | Equals `ctx.model.id` (e.g. `gpt-5.5`). Case-sensitive. Optional. |
 | `match.modelIdRegex` | Regex tested against `ctx.model.id` (e.g. `^claude-` covers `claude-opus-4-8/4-7/4-6`). Optional. |
@@ -69,11 +71,13 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 | `sandbox` | Value for the `sandbox` field in Codex turn metadata. Default `windows_sandbox`. Valid values: `windows_sandbox`, `windows_elevated`, `seatbelt` (macOS), `seccomp` (Linux), `none` (sandbox off / danger-full-access), `external`. Must match the platform your template's `user-agent` **claims**, not necessarily the real host — e.g. if you edit the UA to macOS, set `seatbelt`. |
 | `debug` | Debug-logging switch, default `false`. When `true`, writes diagnostics (secrets redacted) to `pi-custom-header.log` in the user extension dir. Off by default — zero side effects. |
 
-Fields present in a `match` are ANDed. An empty `match: {}` is a catch-all — use with care. A model that matches no rule (or a request with no model) is passed through untouched. A template line whose placeholder has no registered generator is dropped (never emitted as a raw `{{token}}`).
+A rule containing `modelId` or `modelIdRegex` has model scope; a rule containing only `provider` has provider scope; an empty `match: {}` is the global catch-all. Scope priority is fixed regardless of array position, while first match still wins within one scope. Fields in a `match` are ANDed. A matching model template is used alone and does not inherit any provider-template lines. A model that matches no rule (or a request with no model) is passed through untouched. A template line whose placeholder has no registered generator is dropped (never emitted as a raw `{{token}}`).
 
 ## Templates
 
-A template is **raw HTTP header text**, one `Key: Value` per line, split on the first `:` (values may contain `:`). Blank lines and `#` comments are ignored. Key casing and order are preserved to match captures byte-for-byte.
+A template is **raw HTTP header text**, one `Key: Value` per line, split on the first `:` (values may contain `:`). Blank lines and `#` comments are ignored. Header names are unrestricted except for the blacklist: add any valid header line to `custom.headers` and it takes effect.
+
+HTTP header names are **case-insensitive**. Before writing a template line, the extension removes every case variant of that header already present in Pi's header object, then writes the template's key and value. Existing `User-Agent` and template `user-agent` keys therefore cannot coexist; exactly one remains. If a template repeats the same header with different casing, its last line wins.
 
 Dynamic lines use `{{placeholder}}`:
 
@@ -89,7 +93,7 @@ Placeholder values are memoized per hook fire (every `{{session_id}}` in one req
 
 ### Adding a backend
 
-Most of the time: add one `rule` and (if needed) one template file, reusing existing placeholders. Only a brand-new dynamic field requires adding a generator in `src/placeholders.ts`.
+For provider-wide defaults, add a rule containing only `provider`. Add `modelId` or `modelIdRegex` rules for model-specific exceptions. Add a template file if needed and reuse existing placeholders. Only a brand-new dynamic field requires adding a generator in `src/placeholders.ts`.
 
 ## Safety
 

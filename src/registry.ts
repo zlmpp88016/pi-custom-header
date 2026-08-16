@@ -8,8 +8,7 @@ export interface ModelLike {
 }
 
 function matches(spec: MatchSpec, model: ModelLike): boolean {
-	// Each present field is ANDed. An empty match {} matches everything
-	// (catch-all, use with care — documented in README).
+	// Each present field is ANDed. An empty match {} matches everything.
 	if (spec.provider !== undefined && spec.provider !== model.provider) {
 		return false;
 	}
@@ -36,19 +35,33 @@ function matches(spec: MatchSpec, model: ModelLike): boolean {
 	return true;
 }
 
+type RuleScope = "model" | "provider" | "global";
+
+function getRuleScope(spec: MatchSpec): RuleScope {
+	if (spec.modelId !== undefined || spec.modelIdRegex !== undefined) {
+		return "model";
+	}
+	if (spec.provider !== undefined) {
+		return "provider";
+	}
+	return "global";
+}
+
 /**
- * Walk the ordered rule list and return the template name of the first rule
- * whose match satisfies the model. Returns null when the model is absent or no
- * rule matches (→ transparent passthrough).
+ * Resolve exactly one template using fixed scope priority:
+ * model > provider > global catch-all. Rule order matters only within a scope,
+ * so a model match always excludes a matching provider template.
  */
 export function resolveTemplateName(rules: Rule[], model: ModelLike | undefined): string | null {
 	if (!model) {
 		return null;
 	}
 
-	for (const rule of rules) {
-		if (matches(rule.match, model)) {
-			return rule.template;
+	for (const scope of ["model", "provider", "global"] satisfies RuleScope[]) {
+		for (const rule of rules) {
+			if (getRuleScope(rule.match) === scope && matches(rule.match, model)) {
+				return rule.template;
+			}
 		}
 	}
 

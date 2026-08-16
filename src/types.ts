@@ -10,7 +10,10 @@ export interface MatchSpec {
 	modelIdRegex?: string;
 }
 
-/** One ordered rule mapping a match to a template file name. */
+/**
+ * One ordered rule mapping a match to a template file name. Rules are ordered
+ * within their scope; scope priority is model > provider > global catch-all.
+ */
 export interface Rule {
 	match: MatchSpec;
 	/** Template file name, e.g. "codex.headers" (resolved under templates/). */

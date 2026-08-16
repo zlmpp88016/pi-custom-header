@@ -14,7 +14,9 @@ writeFileSync(
 	join(extDir, "config.json"),
 	JSON.stringify({
 		rules: [
+			{ match: { provider: "Axon" }, template: "custom.headers" },
 			{ match: { provider: "Axon", modelId: "gpt-5.5" }, template: "codex.headers" },
+			{ match: { provider: "Axon", modelId: "broken-model" }, template: "missing.headers" },
 			{ match: { provider: "Axon", modelIdRegex: "^claude-" }, template: "claude-code.headers" },
 		],
 		blacklist: ["Authorization", "Content-Length"],
@@ -33,6 +35,15 @@ writeFileSync(
 writeFileSync(
 	join(extDir, "templates", "claude-code.headers"),
 	["X-Claude-Code-Session-Id: {{session_id}}", "x-app: cli"].join("\n"),
+);
+writeFileSync(
+	join(extDir, "templates", "custom.headers"),
+	[
+		"User-Agent: ignored-earlier-template-value",
+		"user-agent: codex-tui/provider-default",
+		"originator: codex-tui",
+		"x-user-added-header: enabled",
+	].join("\n"),
 );
 
 const { default: piCustomHeader } = await import("../src/index.js");
@@ -58,11 +69,13 @@ function makeHook() {
 describe("integration: before_provider_headers", () => {
 	const fire = makeHook();
 
-	test("Axon gpt-5.5 → codex headers with dynamic values", () => {
+	test("Axon gpt-5.5 → model template only, even when provider rule is first", () => {
 		const h = fire({ provider: "Axon", id: "gpt-5.5" });
 		expect(h["session-id"]).toBe(SID);
 		expect(h["x-codex-window-id"]).toBe(`${SID}:0`);
 		expect(h["originator"]).toBe("codex-tui");
+		expect(h["x-user-added-header"]).toBeUndefined();
+		expect(h["user-agent"]).toBeUndefined();
 		expect(JSON.parse(h["x-codex-turn-metadata"]!).session_id).toBe(SID);
 	});
 
@@ -78,8 +91,29 @@ describe("integration: before_provider_headers", () => {
 		expect(h["Authorization"]).toBe("Bearer real-pi-token");
 	});
 
-	test("unmatched model → headers untouched (passthrough)", () => {
-		const h = fire({ provider: "Axon", id: "deepseek-v4-pro" }, { existing: "1" });
+	test("provider template applies every non-blacklisted line to unmatched Axon models", () => {
+		const h = fire(
+			{ provider: "Axon", id: "deepseek-v4-pro" },
+			{
+				existing: "1",
+				"User-Agent": "Pi/native",
+				"USER-AGENT": "Pi/duplicate",
+			},
+		);
+		expect(h.existing).toBe("1");
+		expect(h["user-agent"]).toBe("codex-tui/provider-default");
+		expect(h.originator).toBe("codex-tui");
+		expect(h["x-user-added-header"]).toBe("enabled");
+		expect(Object.keys(h).filter((key) => key.toLowerCase() === "user-agent")).toEqual(["user-agent"]);
+	});
+
+	test("unreadable model template passes through without falling back to provider template", () => {
+		const h = fire({ provider: "Axon", id: "broken-model" }, { existing: "1" });
+		expect(h).toEqual({ existing: "1" });
+	});
+
+	test("provider without a matching rule → headers untouched (passthrough)", () => {
+		const h = fire({ provider: "Other", id: "deepseek-v4-pro" }, { existing: "1" });
 		expect(h).toEqual({ existing: "1" });
 	});
 

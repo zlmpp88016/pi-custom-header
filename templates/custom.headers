@@ -1,0 +1,4 @@
+# Provider-level fallback headers (template)
+# Add any other non-blacklisted HTTP header as another Key: Value line.
+user-agent: codex-tui/0.147.0 (Windows 10.0.26200; x86_64) WindowsTerminal (codex-tui; 0.147.0)
+originator: codex-tui

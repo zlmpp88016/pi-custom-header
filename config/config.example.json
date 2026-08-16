@@ -2,7 +2,8 @@
   "rules": [
     { "match": { "provider": "Axon", "modelId": "gpt-5.5" }, "template": "codex.headers" },
     { "match": { "provider": "Axon", "modelId": "gpt-5.4" }, "template": "codex.headers" },
-    { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" }
+    { "match": { "provider": "Axon", "modelIdRegex": "^claude-" }, "template": "claude-code.headers" },
+    { "match": { "provider": "Axon" }, "template": "custom.headers" }
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "sandbox": "windows_sandbox",
