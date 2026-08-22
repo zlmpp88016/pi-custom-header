@@ -77,7 +77,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 
 模板就是**原始 HTTP 头文本**：每行一个 `Key: Value`，按第一个 `:` 切分（值里可以再包含 `:`）。空行和以 `#` 开头的注释会被忽略。除了黑名单以外，Header 名没有白名单限制：可以在 `custom.headers` 中继续添加任意合法 Header 行，都会生效。
 
-Header 名按 HTTP 语义**不区分大小写**。写入每一行前，扩展会删除 Pi 已有 Header 中所有同名大小写变体，再以模板中的键和值写入。因此已有的 `User-Agent` 与模板中的 `user-agent` 不会并存，最终只保留模板定义的一个键；模板自身重复定义同名 Header 时，最后一行生效。
+Header 名按 HTTP 语义**不区分大小写**。写入每一行前，扩展会删除 Pi 已有 Header 中所有同名大小写变体，再以模板中的键和值写入。因此已有的 `User-Agent` 与模板中的 `user-agent` 不会并存，最终只保留模板定义的一个键；模板自身重复定义同名 Header 时，最后一行生效。对于 session ID，`Session-Id` / `SESSION-ID` 与 `Session_id` / `SESSION_ID` 等大小写变体都会被清理，最终只保留规范的 `session-id`（连字符）版本。
 
 动态行用 `{{占位符}}` 标记：
 
@@ -85,11 +85,11 @@ Header 名按 HTTP 语义**不区分大小写**。写入每一行前，扩展会
 |--------|-----|
 | `{{session_id}}` | `ctx.sessionManager.getSessionId()` |
 | `{{window_id}}` | `<session_id>:0` |
-| `{{request_id}}` | 每次触发重新生成的 UUID v7 |
+| `{{request_id}}` | 兼容旧模板的别名，等同于当前 session id（推荐新模板使用 `{{session_id}}`） |
 | `{{installation_id}}` | 持久化的机器稳定 UUID |
 | `{{codex_turn_metadata}}` | 紧凑 JSON：`installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms`（字段顺序和真实 Codex 抓包一致；`sandbox` 取自配置项；`workspaces` 有意省略） |
 
-占位符按**单次钩子触发**缓存：同一次请求里所有 `{{session_id}}` 都是同一个值，`request_id` / `turn_id` 每次触发只生成一次。
+占位符按**单次钩子触发**缓存：同一次请求里所有 `{{session_id}}` 和兼容别名 `{{request_id}}` 都等于当前 session id；`turn_id` 仍按每次触发重新生成。旧用户模板即使继续使用 `x-client-request-id: {{request_id}}`，更新插件后也会自动与 session 绑定。
 
 ### 接入新后端
 

@@ -6,7 +6,7 @@
 x-codex-beta-features: remote_compaction_v2
 x-codex-window-id: {{window_id}}
 x-codex-turn-metadata: {{codex_turn_metadata}}
-x-client-request-id: {{request_id}}
+x-client-request-id: {{session_id}}
 session-id: {{session_id}}
 thread-id: {{session_id}}
 accept: text/event-stream

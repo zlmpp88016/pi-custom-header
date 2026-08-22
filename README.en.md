@@ -77,7 +77,7 @@ A rule containing `modelId` or `modelIdRegex` has model scope; a rule containing
 
 A template is **raw HTTP header text**, one `Key: Value` per line, split on the first `:` (values may contain `:`). Blank lines and `#` comments are ignored. Header names are unrestricted except for the blacklist: add any valid header line to `custom.headers` and it takes effect.
 
-HTTP header names are **case-insensitive**. Before writing a template line, the extension removes every case variant of that header already present in Pi's header object, then writes the template's key and value. Existing `User-Agent` and template `user-agent` keys therefore cannot coexist; exactly one remains. If a template repeats the same header with different casing, its last line wins.
+HTTP header names are **case-insensitive**. Before writing a template line, the extension removes every case variant of that header already present in Pi's header object, then writes the template's key and value. Existing `User-Agent` and template `user-agent` keys therefore cannot coexist; exactly one remains. If a template repeats the same header with different casing, its last line wins. For session IDs, all case variants of both `Session-Id` / `SESSION-ID` and `Session_id` / `SESSION_ID` are removed, then only the canonical hyphenated `session-id` is emitted.
 
 Dynamic lines use `{{placeholder}}`:
 
@@ -85,11 +85,11 @@ Dynamic lines use `{{placeholder}}`:
 |-------------|-------|
 | `{{session_id}}` | `ctx.sessionManager.getSessionId()` |
 | `{{window_id}}` | `<session_id>:0` |
-| `{{request_id}}` | fresh UUID v7 |
+| `{{request_id}}` | compatibility alias for the current session id (new templates should use `{{session_id}}`) |
 | `{{installation_id}}` | persisted machine-stable UUID |
 | `{{codex_turn_metadata}}` | compact JSON: `installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms` (field order matches the real Codex capture; `sandbox` comes from the config `sandbox` option; `workspaces` intentionally omitted) |
 
-Placeholder values are memoized per hook fire (every `{{session_id}}` in one request is identical; `request_id`/`turn_id` are generated once per fire).
+Placeholder values are memoized per hook fire: `{{session_id}}` and the legacy `{{request_id}}` alias both resolve to the current session id; `turn_id` is still regenerated for each hook fire. Older templates using `x-client-request-id: {{request_id}}` therefore become session-bound automatically after the plugin is updated.
 
 ### Adding a backend
 

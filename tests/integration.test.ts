@@ -25,7 +25,8 @@ writeFileSync(
 writeFileSync(
 	join(extDir, "templates", "codex.headers"),
 	[
-		"session-id: {{session_id}}",
+		"Session_id: {{session_id}}",
+		"x-client-request-id: {{request_id}}",
 		"x-codex-window-id: {{window_id}}",
 		"x-codex-turn-metadata: {{codex_turn_metadata}}",
 		"originator: codex-tui",
@@ -58,9 +59,9 @@ function makeHook() {
 		},
 	};
 	piCustomHeader(pi as never);
-	return (model: unknown, seed: Record<string, string> = {}) => {
+	return (model: unknown, seed: Record<string, string> = {}, sessionId = SID) => {
 		const headers: Record<string, string> = { ...seed };
-		const ctx = { model, sessionManager: { getSessionId: () => SID } };
+		const ctx = { model, sessionManager: { getSessionId: () => sessionId } };
 		handler({ headers }, ctx);
 		return headers;
 	};
@@ -70,13 +71,32 @@ describe("integration: before_provider_headers", () => {
 	const fire = makeHook();
 
 	test("Axon gpt-5.5 → model template only, even when provider rule is first", () => {
-		const h = fire({ provider: "Axon", id: "gpt-5.5" });
+		const h = fire(
+			{ provider: "Axon", id: "gpt-5.5" },
+			{
+				"SESSION-ID": "old-hyphenated",
+				"SESSION_ID": "old-underscored",
+			},
+		);
 		expect(h["session-id"]).toBe(SID);
+		expect(Object.keys(h).filter((key) => key.toLowerCase() === "session-id")).toEqual(["session-id"]);
+		expect(Object.keys(h).filter((key) => key.toLowerCase() === "session_id")).toEqual([]);
+		expect(h["x-client-request-id"]).toBe(SID);
 		expect(h["x-codex-window-id"]).toBe(`${SID}:0`);
 		expect(h["originator"]).toBe("codex-tui");
 		expect(h["x-user-added-header"]).toBeUndefined();
 		expect(h["user-agent"]).toBeUndefined();
 		expect(JSON.parse(h["x-codex-turn-metadata"]!).session_id).toBe(SID);
+	});
+
+	test("legacy request_id stays bound to the session across requests", () => {
+		const first = fire({ provider: "Axon", id: "gpt-5.5" }, {}, SID);
+		const second = fire({ provider: "Axon", id: "gpt-5.5" }, {}, SID);
+		const otherSession = fire({ provider: "Axon", id: "gpt-5.5" }, {}, `${SID}-other`);
+
+		expect(first["x-client-request-id"]).toBe(SID);
+		expect(second["x-client-request-id"]).toBe(SID);
+		expect(otherSession["x-client-request-id"]).toBe(`${SID}-other`);
 	});
 
 	test("Axon claude-opus-4-8 → claude-code headers via regex", () => {

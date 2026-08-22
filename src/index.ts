@@ -5,14 +5,28 @@ import { createRenderContext } from "./placeholders.js";
 import { resolveTemplateName, type ModelLike } from "./registry.js";
 import { renderValue } from "./render.js";
 
-function setHeaderCaseInsensitive(headers: Record<string, string | null>, key: string, value: string): void {
-	const normalizedKey = key.toLowerCase();
+function deleteHeadersCaseInsensitive(headers: Record<string, string | null>, names: string[]): void {
+	const normalizedNames = new Set(names.map((name) => name.toLowerCase()));
 	for (const existingKey of Object.keys(headers)) {
-		if (existingKey.toLowerCase() === normalizedKey) {
+		if (normalizedNames.has(existingKey.toLowerCase())) {
 			delete headers[existingKey];
 		}
 	}
-	headers[key] = value;
+}
+
+/**
+ * HTTP header names are case-insensitive, but `_` and `-` are distinct. For
+ * the session ID header, accept both spellings and emit only `session-id`.
+ */
+function isSessionIdHeader(key: string): boolean {
+	const normalizedKey = key.toLowerCase();
+	return normalizedKey === "session-id" || normalizedKey === "session_id";
+}
+
+function setHeaderCaseInsensitive(headers: Record<string, string | null>, key: string, value: string): void {
+	const sessionIdHeader = isSessionIdHeader(key);
+	deleteHeadersCaseInsensitive(headers, sessionIdHeader ? ["session-id", "session_id"] : [key]);
+	headers[sessionIdHeader ? "session-id" : key] = value;
 }
 
 /**
@@ -78,6 +92,8 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 					continue; // drop-line policy for an unknown placeholder.
 				}
 
+				// `setHeaderCaseInsensitive` also normalizes the two session-id
+				// spellings to the canonical hyphenated name.
 				setHeaderCaseInsensitive(event.headers, key, value);
 				injected++;
 				logDebug(`  set ${key}: ${redactSecrets(value)}`);

@@ -5,8 +5,8 @@ import { getInstallationId } from "./state.js";
 /**
  * Per-hook render context. Placeholder values are memoized here so that every
  * reference within a single hook fire is consistent (e.g. session_id used in
- * several headers resolves once; request_id/turn_id are generated once per fire
- * but stay identical wherever referenced in that fire).
+ * several headers resolves once; the legacy request_id alias resolves to the
+ * same session id, while turn_id is generated once per fire).
  */
 export interface RenderContext {
 	ctx: ExtensionContext;
@@ -50,7 +50,9 @@ function codexTurnMetadata(rc: RenderContext): string {
 const GENERATORS: Record<string, Generator> = {
 	session_id: sessionId,
 	window_id: (rc) => `${sessionId(rc)}:0`,
-	request_id: () => uuidv7(),
+	// Compatibility alias for older templates. Codex binds this value to the
+	// session rather than generating a new id for every provider request.
+	request_id: sessionId,
 	installation_id: () => getInstallationId(),
 	codex_turn_metadata: codexTurnMetadata,
 };

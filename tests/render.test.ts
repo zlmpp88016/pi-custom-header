@@ -24,10 +24,8 @@ describe("renderValue — placeholders", () => {
 		expect(renderValue("{{window_id}}", rc()).value).toBe(`${SID}:0`);
 	});
 
-	test("request_id is a fresh uuid v7 (not the session id)", () => {
-		const v = renderValue("{{request_id}}", rc()).value;
-		expect(v).toMatch(/^[0-9a-f-]{36}$/i);
-		expect(v).not.toBe(SID);
+	test("request_id remains a compatibility alias for the session id", () => {
+		expect(renderValue("{{request_id}}", rc()).value).toBe(SID);
 	});
 
 	test("multiple placeholders in one value all replaced", () => {
@@ -37,11 +35,9 @@ describe("renderValue — placeholders", () => {
 		);
 	});
 
-	test("same placeholder is memoized within one render context", () => {
+	test("session_id and legacy request_id resolve to the same value", () => {
 		const ctx = rc();
-		const a = renderValue("{{request_id}}", ctx).value;
-		const b = renderValue("{{request_id}}", ctx).value;
-		expect(a).toBe(b!); // same hook fire → identical
+		expect(renderValue("{{session_id}}/{{request_id}}", ctx).value).toBe(`${SID}/${SID}`);
 	});
 
 	test("no placeholders → passthrough unchanged", () => {
