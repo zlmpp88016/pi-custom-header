@@ -29,6 +29,7 @@ const DEFAULT_CONFIG: CustomHeaderConfig = {
 	blacklist: DEFAULT_BLACKLIST,
 	sandbox: DEFAULT_SANDBOX,
 	teammate: true,
+	inheritParentSession: true,
 	debug: false,
 };
 
@@ -95,6 +96,7 @@ export function normalizeConfig(raw: unknown): CustomHeaderConfig {
 		blacklist: normalizeBlacklist(raw.blacklist),
 		sandbox: toStringOrUndefined(raw.sandbox) ?? DEFAULT_SANDBOX,
 		teammate: raw.teammate !== false,
+		inheritParentSession: raw.inheritParentSession !== false,
 		debug: raw.debug === true,
 	};
 }

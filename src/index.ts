@@ -4,6 +4,7 @@ import { logDebug, redactSecrets, setDebugEnabled } from "./logger.js";
 import { createRenderContext } from "./placeholders.js";
 import { resolveTemplateName, type ModelLike } from "./registry.js";
 import { renderValue } from "./render.js";
+import { recordActiveMainSession } from "./session-cache.js";
 import { registerTeammateChildExtension } from "./teammate.js";
 
 function deleteHeadersCaseInsensitive(headers: Record<string, string | null>, names: string[]): void {
@@ -16,18 +17,22 @@ function deleteHeadersCaseInsensitive(headers: Record<string, string | null>, na
 }
 
 /**
- * HTTP header names are case-insensitive, but `_` and `-` are distinct. For
- * the session ID header, accept both spellings and emit only `session-id`.
+ * Set a header, removing any existing case variants first.
+ *
+ * For session-id variants, canonicalize to hyphenated `session-id`. A template
+ * that specifies `session_id: ...` or an existing header `Session_Id: ...` will
+ * therefore produce a single `session-id: ...` header on the outgoing request.
  */
-function isSessionIdHeader(key: string): boolean {
-	const normalizedKey = key.toLowerCase();
-	return normalizedKey === "session-id" || normalizedKey === "session_id";
-}
-
 function setHeaderCaseInsensitive(headers: Record<string, string | null>, key: string, value: string): void {
-	const sessionIdHeader = isSessionIdHeader(key);
-	deleteHeadersCaseInsensitive(headers, sessionIdHeader ? ["session-id", "session_id"] : [key]);
-	headers[sessionIdHeader ? "session-id" : key] = value;
+	const lower = key.toLowerCase();
+	if (lower === "session-id" || lower === "session_id") {
+		deleteHeadersCaseInsensitive(headers, ["session-id", "session_id"]);
+		headers["session-id"] = value;
+		return;
+	}
+
+	deleteHeadersCaseInsensitive(headers, [key]);
+	headers[key] = value;
 }
 
 /**
@@ -62,14 +67,30 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 	}
 
 	// Re-register on session_start to ensure child registration stays active across session restarts
-	pi.on("session_start", () => {
+	// and record the active main session ID.
+	pi.on("session_start", (_event, ctx: ExtensionContext) => {
 		try {
+			const sid = ctx.sessionManager?.getSessionId?.();
+			if (sid) {
+				recordActiveMainSession(sid, ctx.cwd);
+			}
 			const config = loadConfig();
 			if (config.teammate) {
 				registerTeammateChildExtension();
 			}
 		} catch (error) {
-			logDebug("session_start teammate registration failed", error);
+			logDebug("session_start initialization failed", error);
+		}
+	});
+
+	pi.on("before_agent_start", (_event, ctx: ExtensionContext) => {
+		try {
+			const sid = ctx.sessionManager?.getSessionId?.();
+			if (sid) {
+				recordActiveMainSession(sid, ctx.cwd);
+			}
+		} catch {
+			// ignore
 		}
 	});
 
@@ -83,6 +104,13 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 			const childPrefix = isChild
 				? `[teammate-child:${process.env.PI_TEAMMATE_CORRELATION_ID ?? "unknown"}] `
 				: "";
+
+			if (!isChild) {
+				const sid = ctx.sessionManager?.getSessionId?.();
+				if (sid) {
+					recordActiveMainSession(sid, ctx.cwd);
+				}
+			}
 
 			const model = ctx.model as ModelLike | undefined;
 			const modelLabel = model ? `${model.provider ?? "?"}/${model.id ?? "?"}` : "(no model)";
@@ -105,7 +133,7 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 			}
 
 			const blacklist = new Set(config.blacklist.map((h) => h.toLowerCase()));
-			const rc = createRenderContext(ctx, config.sandbox);
+			const rc = createRenderContext(ctx, config.sandbox, config.inheritParentSession);
 
 			logDebug(`${childPrefix}${modelLabel} → template "${templateName}"`);
 

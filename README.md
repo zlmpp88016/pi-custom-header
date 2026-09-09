@@ -58,6 +58,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "sandbox": "windows_sandbox",
   "teammate": true,
+  "inheritParentSession": true,
   "debug": false
 }
 ```
@@ -71,6 +72,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 | `blacklist` | 绝不写入请求的头部名称（不区分大小写），用来保护鉴权信息和传输层头部。 |
 | `sandbox` | Codex turn 元数据里 `sandbox` 字段的值，默认 `windows_sandbox`。可选值：`windows_sandbox`、`windows_elevated`、`seatbelt`（macOS）、`seccomp`（Linux）、`none`（关闭沙箱 / 完全访问，慎用）、`external`。这个值要和你模板 `user-agent` 里**声称**的平台一致，而不是真实主机平台——比如你把 UA 改成了 macOS，这里就要写 `seatbelt`。 |
 | `teammate` | 是否自动传播至 `pi-maestro-teammate` 子代理进程，默认 `true`。开启后子代理进程也会加载本插件并应用自定义 Header。 |
+| `inheritParentSession` | 在 teammate 子代理中，是否让 `{{session_id}}` 等占位符继承主任务的 session ID，默认 `true`。开启后子代理与主任务携带完全相同的 session ID，使网关/服务端能够正确命中 Prompt 缓存。 |
 | `debug` | 调试开关，默认 `false`。设为 `true` 时，把诊断日志（token 已脱敏）写到用户扩展目录下的 `pi-custom-header.log`；默认关闭，零副作用。 |
 
 含 `modelId` 或 `modelIdRegex` 的规则属于 model 级；只含 `provider` 的规则属于 provider 级；空 `match: {}` 是全局兜底级。跨级优先级固定，不受数组排列位置影响；同一级仍按配置顺序选择。`match` 里设置了多个字段时，需要**全部满足**（AND 关系）。model 规则命中后只应用其模板，provider 模板完全不生效；没有匹配到任何规则的模型（或请求本身没有 model）会被直接放行。模板里若有占位符没有注册生成器，那一行会被丢弃，绝不会把原始 `{{token}}` 发出去。
@@ -85,8 +87,9 @@ Header 名按 HTTP 语义**不区分大小写**。写入每一行前，扩展会
 
 | 占位符 | 值 |
 |--------|-----|
-| `{{session_id}}` | `ctx.sessionManager.getSessionId()` |
-| `{{parent_session_id}}` | 父会话 ID（在 teammate 子代理中运行时解析父会话 ID，主会话中等于当前 session_id） |
+| `{{session_id}}` | 当前会话 ID（在子代理中且 `inheritParentSession` 开启时，自动解析为主任务 session ID 以命中服务端缓存） |
+| `{{parent_session_id}}` | 主任务（父会话）ID（无论在主进程还是子代理中均解析主任务会话 ID） |
+| `{{child_session_id}}` | 子代理自身的原始会话 ID（主进程中等于当前 session_id） |
 | `{{correlation_id}}` | teammate 子代理关联 ID（`PI_TEAMMATE_CORRELATION_ID`） |
 | `{{is_teammate}}` | 是否处于 teammate 子代理进程（`"true"` 或 `"false"`） |
 | `{{window_id}}` | `<session_id>:0` |

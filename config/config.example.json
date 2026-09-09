@@ -8,5 +8,6 @@
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "sandbox": "windows_sandbox",
   "teammate": true,
+  "inheritParentSession": true,
   "debug": false
 }

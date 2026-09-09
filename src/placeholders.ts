@@ -1,5 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { uuidv7 } from "uuidv7";
+import { resolveMainSessionId } from "./session-cache.js";
 import { getInstallationId } from "./state.js";
 
 /**
@@ -12,16 +13,22 @@ export interface RenderContext {
 	ctx: ExtensionContext;
 	/** Codex turn-metadata `sandbox` value (config `sandbox`). */
 	sandbox: string;
+	/** Whether teammate child subprocess inherits the main task's session ID. */
+	inheritParentSession?: boolean;
 	cache: Map<string, string>;
 }
 
-export function createRenderContext(ctx: ExtensionContext, sandbox: string): RenderContext {
-	return { ctx, sandbox, cache: new Map() };
+export function createRenderContext(
+	ctx: ExtensionContext,
+	sandbox: string,
+	inheritParentSession = true,
+): RenderContext {
+	return { ctx, sandbox, inheritParentSession, cache: new Map() };
 }
 
 type Generator = (rc: RenderContext) => string;
 
-function sessionId(rc: RenderContext): string {
+function currentSessionId(rc: RenderContext): string {
 	try {
 		return rc.ctx.sessionManager?.getSessionId?.() ?? "";
 	} catch {
@@ -29,16 +36,20 @@ function sessionId(rc: RenderContext): string {
 	}
 }
 
-function parentSessionId(rc: RenderContext): string {
-	const parentSessionFile = process.env.PI_TEAMMATE_PARENT_SESSION;
-	if (parentSessionFile) {
-		const match = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-zA-Z_-]{8,})\.jsonl$/i.exec(parentSessionFile);
-		if (match && match[1]) {
-			const parts = match[1].split("_");
-			return parts[parts.length - 1];
+function sessionId(rc: RenderContext): string {
+	const isChild = process.env.PI_TEAMMATE_CHILD === "1";
+	const inherit = rc.inheritParentSession !== false;
+	if (isChild && inherit) {
+		const mainId = resolveMainSessionId(rc);
+		if (mainId && mainId.length > 0) {
+			return mainId;
 		}
 	}
-	return sessionId(rc);
+	return currentSessionId(rc);
+}
+
+function parentSessionId(rc: RenderContext): string {
+	return resolveMainSessionId(rc);
 }
 
 /**
@@ -66,6 +77,8 @@ function codexTurnMetadata(rc: RenderContext): string {
 const GENERATORS: Record<string, Generator> = {
 	session_id: sessionId,
 	parent_session_id: parentSessionId,
+	child_session_id: currentSessionId,
+	agent_session_id: currentSessionId,
 	correlation_id: () => process.env.PI_TEAMMATE_CORRELATION_ID ?? "",
 	is_teammate: () => (process.env.PI_TEAMMATE_CHILD === "1" ? "true" : "false"),
 	window_id: (rc) => `${sessionId(rc)}:0`,

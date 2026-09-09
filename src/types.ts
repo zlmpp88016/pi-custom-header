@@ -36,6 +36,12 @@ export interface CustomHeaderConfig {
 	 * Default: true.
 	 */
 	teammate: boolean;
+	/**
+	 * Whether teammate child agent subprocesses inherit and use the main task's session ID
+	 * for session_id placeholders to enable prompt cache hits on the backend.
+	 * Default: true.
+	 */
+	inheritParentSession: boolean;
 	/** When true, write diagnostics to pi-custom-header.log (tokens redacted). */
 	debug: boolean;
 }
