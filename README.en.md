@@ -2,7 +2,7 @@
 
 **English** | [中文](./README.md)
 
-A plugin that gives Pi dynamic request-header overrides, with provider defaults and dedicated Claude Code, Codex, or other templates for selected models.
+A plugin that gives Pi dynamic request-header overrides, with provider defaults and dedicated Claude Code, Codex, or other templates for selected models, fully compatible with `pi-maestro-teammate` child agent processes.
 
 It generates per-session / per-turn **dynamic** values (session id, Codex turn metadata, request id, …) that static `models.json` headers cannot express.
 
@@ -57,6 +57,7 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "sandbox": "windows_sandbox",
+  "teammate": true,
   "debug": false
 }
 ```
@@ -69,6 +70,7 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 | `match.modelIdRegex` | Regex tested against `ctx.model.id` (e.g. `^claude-` covers `claude-opus-4-8/4-7/4-6`). Optional. |
 | `blacklist` | Header names never written (case-insensitive). Protects auth/transport headers. |
 | `sandbox` | Value for the `sandbox` field in Codex turn metadata. Default `windows_sandbox`. Valid values: `windows_sandbox`, `windows_elevated`, `seatbelt` (macOS), `seccomp` (Linux), `none` (sandbox off / danger-full-access), `external`. Must match the platform your template's `user-agent` **claims**, not necessarily the real host — e.g. if you edit the UA to macOS, set `seatbelt`. |
+| `teammate` | Whether to propagate this extension to `pi-maestro-teammate` child agent subprocesses. Default `true`. Child agent processes will also load this plugin and apply headers. |
 | `debug` | Debug-logging switch, default `false`. When `true`, writes diagnostics (secrets redacted) to `pi-custom-header.log` in the user extension dir. Off by default — zero side effects. |
 
 A rule containing `modelId` or `modelIdRegex` has model scope; a rule containing only `provider` has provider scope; an empty `match: {}` is the global catch-all. Scope priority is fixed regardless of array position, while first match still wins within one scope. Fields in a `match` are ANDed. A matching model template is used alone and does not inherit any provider-template lines. A model that matches no rule (or a request with no model) is passed through untouched. A template line whose placeholder has no registered generator is dropped (never emitted as a raw `{{token}}`).
@@ -84,6 +86,9 @@ Dynamic lines use `{{placeholder}}`:
 | Placeholder | Value |
 |-------------|-------|
 | `{{session_id}}` | `ctx.sessionManager.getSessionId()` |
+| `{{parent_session_id}}` | Parent session ID (resolved from parent session file when running in teammate child processes; falls back to current session ID) |
+| `{{correlation_id}}` | Teammate child correlation ID (`PI_TEAMMATE_CORRELATION_ID`) |
+| `{{is_teammate}}` | Whether running in a teammate child process (`"true"` or `"false"`) |
 | `{{window_id}}` | `<session_id>:0` |
 | `{{request_id}}` | compatibility alias for the current session id (new templates should use `{{session_id}}`) |
 | `{{installation_id}}` | persisted machine-stable UUID |

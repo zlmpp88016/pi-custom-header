@@ -28,6 +28,7 @@ const DEFAULT_CONFIG: CustomHeaderConfig = {
 	rules: [],
 	blacklist: DEFAULT_BLACKLIST,
 	sandbox: DEFAULT_SANDBOX,
+	teammate: true,
 	debug: false,
 };
 
@@ -93,6 +94,7 @@ export function normalizeConfig(raw: unknown): CustomHeaderConfig {
 		rules: normalizeRules(raw.rules),
 		blacklist: normalizeBlacklist(raw.blacklist),
 		sandbox: toStringOrUndefined(raw.sandbox) ?? DEFAULT_SANDBOX,
+		teammate: raw.teammate !== false,
 		debug: raw.debug === true,
 	};
 }

@@ -2,7 +2,7 @@
 
 [English](./README.en.md) | **中文**
 
-一个可以为 [Pi](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 提供动态请求头覆写的插件，支持按 provider 设置默认模板，并为特定 model 使用 Claude Code、Codex 等专属模板。
+一个可以为 [Pi](https://github.com/earendil-works/pi/tree/main/packages/coding-agent) 提供动态请求头覆写的插件，支持按 provider 设置默认模板，并为特定 model 使用 Claude Code、Codex 等专属模板，同时支持 `pi-maestro-teammate` 子代理进程无缝继承请求头配置。
 
 能够生成按会话、按轮次变化的**动态值**（会话 ID、Codex turn 元数据、请求 ID 等），这些用 `models.json` 里的静态 headers 无法实现。
 
@@ -57,6 +57,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
   ],
   "blacklist": ["Authorization", "Content-Length", "Host", "Content-Encoding", "Connection", "Accept-Encoding"],
   "sandbox": "windows_sandbox",
+  "teammate": true,
   "debug": false
 }
 ```
@@ -69,6 +70,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 | `match.modelIdRegex` | 用正则匹配 `ctx.model.id`（如 `^claude-` 可匹配 `claude-opus-4-8/4-7/4-6`）。可选。 |
 | `blacklist` | 绝不写入请求的头部名称（不区分大小写），用来保护鉴权信息和传输层头部。 |
 | `sandbox` | Codex turn 元数据里 `sandbox` 字段的值，默认 `windows_sandbox`。可选值：`windows_sandbox`、`windows_elevated`、`seatbelt`（macOS）、`seccomp`（Linux）、`none`（关闭沙箱 / 完全访问，慎用）、`external`。这个值要和你模板 `user-agent` 里**声称**的平台一致，而不是真实主机平台——比如你把 UA 改成了 macOS，这里就要写 `seatbelt`。 |
+| `teammate` | 是否自动传播至 `pi-maestro-teammate` 子代理进程，默认 `true`。开启后子代理进程也会加载本插件并应用自定义 Header。 |
 | `debug` | 调试开关，默认 `false`。设为 `true` 时，把诊断日志（token 已脱敏）写到用户扩展目录下的 `pi-custom-header.log`；默认关闭，零副作用。 |
 
 含 `modelId` 或 `modelIdRegex` 的规则属于 model 级；只含 `provider` 的规则属于 provider 级；空 `match: {}` 是全局兜底级。跨级优先级固定，不受数组排列位置影响；同一级仍按配置顺序选择。`match` 里设置了多个字段时，需要**全部满足**（AND 关系）。model 规则命中后只应用其模板，provider 模板完全不生效；没有匹配到任何规则的模型（或请求本身没有 model）会被直接放行。模板里若有占位符没有注册生成器，那一行会被丢弃，绝不会把原始 `{{token}}` 发出去。
@@ -84,6 +86,9 @@ Header 名按 HTTP 语义**不区分大小写**。写入每一行前，扩展会
 | 占位符 | 值 |
 |--------|-----|
 | `{{session_id}}` | `ctx.sessionManager.getSessionId()` |
+| `{{parent_session_id}}` | 父会话 ID（在 teammate 子代理中运行时解析父会话 ID，主会话中等于当前 session_id） |
+| `{{correlation_id}}` | teammate 子代理关联 ID（`PI_TEAMMATE_CORRELATION_ID`） |
+| `{{is_teammate}}` | 是否处于 teammate 子代理进程（`"true"` 或 `"false"`） |
 | `{{window_id}}` | `<session_id>:0` |
 | `{{request_id}}` | 兼容旧模板的别名，等同于当前 session id（推荐新模板使用 `{{session_id}}`） |
 | `{{installation_id}}` | 持久化的机器稳定 UUID |

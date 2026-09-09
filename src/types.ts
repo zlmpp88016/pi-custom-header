@@ -31,6 +31,11 @@ export interface CustomHeaderConfig {
 	 * `seccomp`), not necessarily the real host.
 	 */
 	sandbox: string;
+	/**
+	 * Whether to propagate this extension to teammate child agent subprocesses.
+	 * Default: true.
+	 */
+	teammate: boolean;
 	/** When true, write diagnostics to pi-custom-header.log (tokens redacted). */
 	debug: boolean;
 }

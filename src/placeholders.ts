@@ -22,7 +22,23 @@ export function createRenderContext(ctx: ExtensionContext, sandbox: string): Ren
 type Generator = (rc: RenderContext) => string;
 
 function sessionId(rc: RenderContext): string {
-	return rc.ctx.sessionManager.getSessionId();
+	try {
+		return rc.ctx.sessionManager?.getSessionId?.() ?? "";
+	} catch {
+		return "";
+	}
+}
+
+function parentSessionId(rc: RenderContext): string {
+	const parentSessionFile = process.env.PI_TEAMMATE_PARENT_SESSION;
+	if (parentSessionFile) {
+		const match = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-zA-Z_-]{8,})\.jsonl$/i.exec(parentSessionFile);
+		if (match && match[1]) {
+			const parts = match[1].split("_");
+			return parts[parts.length - 1];
+		}
+	}
+	return sessionId(rc);
 }
 
 /**
@@ -49,6 +65,9 @@ function codexTurnMetadata(rc: RenderContext): string {
 /** Registry of placeholder name → generator. */
 const GENERATORS: Record<string, Generator> = {
 	session_id: sessionId,
+	parent_session_id: parentSessionId,
+	correlation_id: () => process.env.PI_TEAMMATE_CORRELATION_ID ?? "",
+	is_teammate: () => (process.env.PI_TEAMMATE_CHILD === "1" ? "true" : "false"),
 	window_id: (rc) => `${sessionId(rc)}:0`,
 	// Compatibility alias for older templates. Codex binds this value to the
 	// session rather than generating a new id for every provider request.
