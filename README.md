@@ -59,6 +59,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
   "sandbox": "windows_sandbox",
   "teammate": true,
   "inheritParentSession": true,
+  "autoOpencodeHeaders": false,
   "debug": false
 }
 ```
@@ -73,6 +74,7 @@ cp templates/*.headers        ~/.pi/agent/extensions/pi-custom-header/
 | `sandbox` | Codex turn 元数据里 `sandbox` 字段的值，默认 `windows_sandbox`。可选值：`windows_sandbox`、`windows_elevated`、`seatbelt`（macOS）、`seccomp`（Linux）、`none`（关闭沙箱 / 完全访问，慎用）、`external`。这个值要和你模板 `user-agent` 里**声称**的平台一致，而不是真实主机平台——比如你把 UA 改成了 macOS，这里就要写 `seatbelt`。 |
 | `teammate` | 是否自动传播至 `pi-maestro-teammate` 子代理进程，默认 `true`。开启后子代理进程也会加载本插件并应用自定义 Header。 |
 | `inheritParentSession` | 在 teammate 子代理中，是否让 `{{session_id}}` 等占位符继承主任务的 session ID，默认 `true`。开启后子代理与主任务携带完全相同的 session ID，使网关/服务端能够正确命中 Prompt 缓存。 |
+| `autoOpencodeHeaders` | 是否自动为所有发往大模型的请求追加 `x-opencode-session` 和 `x-opencode-request` 请求头，默认 `false`。设为 `true` 时自动生成并追加：会话头格式为 `ses_` + 时间倒序 ID，请求头格式为 `msg_` + 时间正序 ID。相同 `{{parent_session_id}}`（主任务会话 ID）严格复用同一个会话 ID（跨轮次与子代理进程保证一致以命中 OpenCode 缓存），每次请求则重新生成独立的请求 ID。亦支持别名 `opencodeHeaders` / `autoOpencode`。 |
 | `debug` | 调试开关，默认 `false`。设为 `true` 时，把诊断日志（token 已脱敏）写到用户扩展目录下的 `pi-custom-header.log`；默认关闭，零副作用。 |
 
 含 `modelId` 或 `modelIdRegex` 的规则属于 model 级；只含 `provider` 的规则属于 provider 级；空 `match: {}` 是全局兜底级。跨级优先级固定，不受数组排列位置影响；同一级仍按配置顺序选择。`match` 里设置了多个字段时，需要**全部满足**（AND 关系）。model 规则命中后只应用其模板，provider 模板完全不生效；没有匹配到任何规则的模型（或请求本身没有 model）会被直接放行。模板里若有占位符没有注册生成器，那一行会被丢弃，绝不会把原始 `{{token}}` 发出去。
@@ -96,8 +98,22 @@ Header 名按 HTTP 语义**不区分大小写**。写入每一行前，扩展会
 | `{{request_id}}` | 兼容旧模板的别名，等同于当前 session id（推荐新模板使用 `{{session_id}}`） |
 | `{{installation_id}}` | 持久化的机器稳定 UUID |
 | `{{codex_turn_metadata}}` | 紧凑 JSON：`installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms`（字段顺序和真实 Codex 抓包一致；`sandbox` 取自配置项；`workspaces` 有意省略） |
+| `{{opencode_session_id}}` | OpenCode 会话 ID（`ses_` + 26 位编码，相同 `parent_session_id` 保持相同，别名 `{{opencode_session}}`） |
+| `{{opencode_request_id}}` | OpenCode 请求 ID（`msg_` + 26 位编码，每次请求递增重新生成，别名 `{{opencode_request}}`） |
 
 占位符按**单次钩子触发**缓存：同一次请求里所有 `{{session_id}}` 和兼容别名 `{{request_id}}` 都等于当前 session id；`turn_id` 仍按每次触发重新生成。旧用户模板即使继续使用 `x-client-request-id: {{request_id}}`，更新插件后也会自动与 session 绑定。
+
+### OpenCode 缓存与请求头支持
+
+当对接 OpenCode 网关或服务时，可通过在 `config.json` 中配置 `"autoOpencodeHeaders": true` 自动开启全局注入：
+- **`x-opencode-session`**：格式如 `ses_f5...`（由 48 位按位取反的时间序列与 14 位 Base62 随机串组成）。扩展内部维护三级缓存（内存、进程环境变量与磁盘文件 `opencode-sessions.json`），只要主任务会话 ID `{{parent_session_id}}` 相同，所有后续轮次与 teammate 子代理均复用该会话 ID，保证 OpenCode 服务端正确命中 Prompt 缓存。
+- **`x-opencode-request`**：格式如 `msg_0a...`（由 48 位正常时间序列与 14 位 Base62 随机串组成），每次请求重新生成独立的唯一请求 ID。
+
+如果不希望对所有请求全局追加，也可保持 `"autoOpencodeHeaders": false`，仅在特定模板文件（如 `custom.headers`）中显式编写：
+```http
+x-opencode-session: {{opencode_session_id}}
+x-opencode-request: {{opencode_request_id}}
+```
 
 ### 接入新后端
 

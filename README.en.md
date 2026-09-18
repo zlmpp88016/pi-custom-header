@@ -59,6 +59,7 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
   "sandbox": "windows_sandbox",
   "teammate": true,
   "inheritParentSession": true,
+  "autoOpencodeHeaders": false,
   "debug": false
 }
 ```
@@ -73,6 +74,7 @@ Code (npm package, this repo)          User data (~/.pi/agent/extensions/pi-cust
 | `sandbox` | Value for the `sandbox` field in Codex turn metadata. Default `windows_sandbox`. Valid values: `windows_sandbox`, `windows_elevated`, `seatbelt` (macOS), `seccomp` (Linux), `none` (sandbox off / danger-full-access), `external`. Must match the platform your template's `user-agent` **claims**, not necessarily the real host — e.g. if you edit the UA to macOS, set `seatbelt`. |
 | `teammate` | Whether to propagate this extension to `pi-maestro-teammate` child agent subprocesses. Default `true`. Child agent processes will also load this plugin and apply headers. |
 | `inheritParentSession` | In teammate child agent subprocesses, whether `{{session_id}}` inherits the main task's session ID. Default `true`. Ensures child agents share the exact session ID with the main task so prompt caches hit on the backend. |
+| `autoOpencodeHeaders` | Whether to automatically generate and append `x-opencode-session` and `x-opencode-request` headers to all outbound model requests. Default `false`. When `true`, automatically injects: session header `ses_` + descending ID, and request header `msg_` + ascending ID. Requests sharing the same `{{parent_session_id}}` strictly reuse the exact same session ID (ensuring OpenCode prompt cache hits across turns and teammate child processes), while each request generates a fresh request ID. Also accepts aliases `opencodeHeaders` / `autoOpencode`. |
 | `debug` | Debug-logging switch, default `false`. When `true`, writes diagnostics (secrets redacted) to `pi-custom-header.log` in the user extension dir. Off by default — zero side effects. |
 
 A rule containing `modelId` or `modelIdRegex` has model scope; a rule containing only `provider` has provider scope; an empty `match: {}` is the global catch-all. Scope priority is fixed regardless of array position, while first match still wins within one scope. Fields in a `match` are ANDed. A matching model template is used alone and does not inherit any provider-template lines. A model that matches no rule (or a request with no model) is passed through untouched. A template line whose placeholder has no registered generator is dropped (never emitted as a raw `{{token}}`).
@@ -96,8 +98,22 @@ Dynamic lines use `{{placeholder}}`:
 | `{{request_id}}` | compatibility alias for the current session id (new templates should use `{{session_id}}`) |
 | `{{installation_id}}` | persisted machine-stable UUID |
 | `{{codex_turn_metadata}}` | compact JSON: `installation_id, session_id, thread_id, turn_id, window_id, request_kind, thread_source, sandbox, turn_started_at_unix_ms` (field order matches the real Codex capture; `sandbox` comes from the config `sandbox` option; `workspaces` intentionally omitted) |
+| `{{opencode_session_id}}` | OpenCode session ID (`ses_` + 26-char encoding, identical across identical `parent_session_id`, alias `{{opencode_session}}`) |
+| `{{opencode_request_id}}` | OpenCode per-request ID (`msg_` + 26-char encoding, regenerated for each request, alias `{{opencode_request}}`) |
 
 Placeholder values are memoized per hook fire: `{{session_id}}` and the legacy `{{request_id}}` alias both resolve to the current session id; `turn_id` is still regenerated for each hook fire. Older templates using `x-client-request-id: {{request_id}}` therefore become session-bound automatically after the plugin is updated.
+
+### OpenCode Headers & Prompt Cache Support
+
+When interfacing with OpenCode or compatible gateways, set `"autoOpencodeHeaders": true` in `config.json` to enable automatic injection:
+- **`x-opencode-session`**: formatted as `ses_f5...` (48-bit bitwise-inverted time sequence + 14-char Base62 entropy). Backed by three-level caching (memory, environment variables, and disk file `opencode-sessions.json`), ensuring all turns and teammate child processes sharing the same `{{parent_session_id}}` reuse the identical session ID for maximum OpenCode prompt cache hit rates.
+- **`x-opencode-request`**: formatted as `msg_0a...` (48-bit chronological time sequence + 14-char Base62 entropy), freshly generated per request.
+
+If global injection is not desired, keep `"autoOpencodeHeaders": false` and explicitly reference them in specific `.headers` templates:
+```http
+x-opencode-session: {{opencode_session_id}}
+x-opencode-request: {{opencode_request_id}}
+```
 
 ### Adding a backend
 
