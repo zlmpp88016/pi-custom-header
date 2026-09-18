@@ -9,5 +9,6 @@
   "sandbox": "windows_sandbox",
   "teammate": true,
   "inheritParentSession": true,
+  "autoOpencodeHeaders": false,
   "debug": false
 }

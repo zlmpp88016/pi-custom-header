@@ -42,6 +42,11 @@ export interface CustomHeaderConfig {
 	 * Default: true.
 	 */
 	inheritParentSession: boolean;
+	/**
+	 * Whether to automatically generate and inject x-opencode-session and
+	 * x-opencode-request headers for all requests. Default: false.
+	 */
+	autoOpencodeHeaders: boolean;
 	/** When true, write diagnostics to pi-custom-header.log (tokens redacted). */
 	debug: boolean;
 }

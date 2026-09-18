@@ -46,4 +46,13 @@ describe("normalizeConfig", () => {
 		expect(normalizeConfig({ sandbox: "" }).sandbox).toBe("windows_sandbox");
 		expect(normalizeConfig({ sandbox: 123 }).sandbox).toBe("windows_sandbox");
 	});
+
+	test("autoOpencodeHeaders defaults to false and accepts true or aliases", () => {
+		expect(normalizeConfig({}).autoOpencodeHeaders).toBe(false);
+		expect(normalizeConfig({ autoOpencodeHeaders: true }).autoOpencodeHeaders).toBe(true);
+		expect(normalizeConfig({ opencodeHeaders: true }).autoOpencodeHeaders).toBe(true);
+		expect(normalizeConfig({ autoOpencode: true }).autoOpencodeHeaders).toBe(true);
+		expect(normalizeConfig({ autoOpencodeHeaders: "true" }).autoOpencodeHeaders).toBe(false);
+		expect(normalizeConfig({ autoOpencodeHeaders: 1 }).autoOpencodeHeaders).toBe(false);
+	});
 });

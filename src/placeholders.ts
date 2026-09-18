@@ -2,6 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { uuidv7 } from "uuidv7";
 import { resolveMainSessionId } from "./session-cache.js";
 import { getInstallationId } from "./state.js";
+import { getOpencodeRequestId, getOpencodeSessionId } from "./opencode.js";
 
 /**
  * Per-hook render context. Placeholder values are memoized here so that every
@@ -87,6 +88,10 @@ const GENERATORS: Record<string, Generator> = {
 	request_id: sessionId,
 	installation_id: () => getInstallationId(),
 	codex_turn_metadata: codexTurnMetadata,
+	opencode_session_id: (rc) => getOpencodeSessionId(parentSessionId(rc), rc.ctx.cwd),
+	opencode_session: (rc) => getOpencodeSessionId(parentSessionId(rc), rc.ctx.cwd),
+	opencode_request_id: () => getOpencodeRequestId(),
+	opencode_request: () => getOpencodeRequestId(),
 };
 
 export function isKnownPlaceholder(name: string): boolean {

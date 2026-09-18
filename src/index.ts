@@ -4,7 +4,8 @@ import { logDebug, redactSecrets, setDebugEnabled } from "./logger.js";
 import { createRenderContext } from "./placeholders.js";
 import { resolveTemplateName, type ModelLike } from "./registry.js";
 import { renderValue } from "./render.js";
-import { recordActiveMainSession } from "./session-cache.js";
+import { getOpencodeRequestId, getOpencodeSessionId } from "./opencode.js";
+import { recordActiveMainSession, resolveMainSessionId } from "./session-cache.js";
 import { registerTeammateChildExtension } from "./teammate.js";
 
 function deleteHeadersCaseInsensitive(headers: Record<string, string | null>, names: string[]): void {
@@ -33,6 +34,25 @@ function setHeaderCaseInsensitive(headers: Record<string, string | null>, key: s
 
 	deleteHeadersCaseInsensitive(headers, [key]);
 	headers[key] = value;
+}
+
+function injectOpencodeHeaders(
+	headers: Record<string, string | null>,
+	rc: ReturnType<typeof createRenderContext>,
+	blacklist: Set<string>,
+): void {
+	const parentSid = resolveMainSessionId(rc);
+	const sessionId = getOpencodeSessionId(parentSid, rc.ctx.cwd);
+	const requestId = getOpencodeRequestId();
+
+	if (!blacklist.has("x-opencode-session")) {
+		setHeaderCaseInsensitive(headers, "x-opencode-session", sessionId);
+		logDebug(`  set auto opencode header x-opencode-session: ${sessionId}`);
+	}
+	if (!blacklist.has("x-opencode-request")) {
+		setHeaderCaseInsensitive(headers, "x-opencode-request", requestId);
+		logDebug(`  set auto opencode header x-opencode-request: ${requestId}`);
+	}
 }
 
 /**
@@ -115,25 +135,40 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 			const model = ctx.model as ModelLike | undefined;
 			const modelLabel = model ? `${model.provider ?? "?"}/${model.id ?? "?"}` : "(no model)";
 
+			const blacklist = new Set(config.blacklist.map((h) => h.toLowerCase()));
+			const rc = createRenderContext(ctx, config.sandbox, config.inheritParentSession);
+
 			if (config.rules.length === 0) {
-				logDebug(`${childPrefix}no rules configured; passthrough for ${modelLabel}`);
+				if (config.autoOpencodeHeaders) {
+					injectOpencodeHeaders(event.headers, rc, blacklist);
+					logDebug(`${childPrefix}injected auto opencode headers for ${modelLabel} (no rules configured)`);
+				} else {
+					logDebug(`${childPrefix}no rules configured; passthrough for ${modelLabel}`);
+				}
 				return;
 			}
 
 			const templateName = resolveTemplateName(config.rules, model);
 			if (templateName === null) {
-				logDebug(`${childPrefix}no rule matched ${modelLabel}; passthrough`);
+				if (config.autoOpencodeHeaders) {
+					injectOpencodeHeaders(event.headers, rc, blacklist);
+					logDebug(`${childPrefix}injected auto opencode headers for ${modelLabel} (no rule matched)`);
+				} else {
+					logDebug(`${childPrefix}no rule matched ${modelLabel}; passthrough`);
+				}
 				return;
 			}
 
 			const template = loadTemplate(templateName);
 			if (template === null) {
-				logDebug(`${childPrefix}template "${templateName}" unreadable for ${modelLabel}; passthrough`);
+				if (config.autoOpencodeHeaders) {
+					injectOpencodeHeaders(event.headers, rc, blacklist);
+					logDebug(`${childPrefix}injected auto opencode headers for ${modelLabel} (template unreadable)`);
+				} else {
+					logDebug(`${childPrefix}template "${templateName}" unreadable for ${modelLabel}; passthrough`);
+				}
 				return;
 			}
-
-			const blacklist = new Set(config.blacklist.map((h) => h.toLowerCase()));
-			const rc = createRenderContext(ctx, config.sandbox, config.inheritParentSession);
 
 			logDebug(`${childPrefix}${modelLabel} → template "${templateName}"`);
 
@@ -161,6 +196,10 @@ export default function piCustomHeader(pi: ExtensionAPI): void {
 				setHeaderCaseInsensitive(event.headers, key, value);
 				injected++;
 				logDebug(`  set ${key}: ${redactSecrets(value)}`);
+			}
+
+			if (config.autoOpencodeHeaders) {
+				injectOpencodeHeaders(event.headers, rc, blacklist);
 			}
 
 			logDebug(`${childPrefix}done ${modelLabel}: ${injected} set, ${skipped} skipped`);

@@ -30,6 +30,7 @@ const DEFAULT_CONFIG: CustomHeaderConfig = {
 	sandbox: DEFAULT_SANDBOX,
 	teammate: true,
 	inheritParentSession: true,
+	autoOpencodeHeaders: false,
 	debug: false,
 };
 
@@ -97,6 +98,10 @@ export function normalizeConfig(raw: unknown): CustomHeaderConfig {
 		sandbox: toStringOrUndefined(raw.sandbox) ?? DEFAULT_SANDBOX,
 		teammate: raw.teammate !== false,
 		inheritParentSession: raw.inheritParentSession !== false,
+		autoOpencodeHeaders:
+			raw.autoOpencodeHeaders === true ||
+			raw.opencodeHeaders === true ||
+			raw.autoOpencode === true,
 		debug: raw.debug === true,
 	};
 }
